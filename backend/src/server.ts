@@ -299,6 +299,24 @@ app.get("/api/route-lookup", async (c) => {
   });
 });
 
+// ─── /api/ingest (trigger ingestion) ─────────────────────────────────────────
+app.post("/api/ingest", async (c) => {
+  const secret = c.req.header("x-ingest-key");
+  if (secret !== (process.env.INGEST_KEY || "local")) {
+    return c.json({ error: "unauthorized" }, 401);
+  }
+
+  const recent = Number(c.req.query("recent") ?? 1);
+  const all = c.req.query("all") === "true";
+
+  // Run ingestion in background so the request doesn't timeout
+  import("./ingest.js").then(({ ingest }) => {
+    ingest(all ? undefined : recent).catch(console.error);
+  });
+
+  return c.json({ status: "ingestion started", recent: all ? "all" : recent });
+});
+
 // ─── Serve frontend static build in production ──────────────────────────────
 const staticDir = path.resolve(import.meta.dirname, "..", "..", "frontend", "dist");
 if (fs.existsSync(staticDir)) {

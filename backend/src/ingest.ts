@@ -160,7 +160,7 @@ async function loadCsvIntoDb(
   await conn.run("DROP TABLE IF EXISTS staging");
 }
 
-async function ingest(recent?: number) {
+export async function ingest(recent?: number) {
   // Ensure data directory exists
   const dataDir = path.dirname(DB_PATH);
   if (!fs.existsSync(dataDir)) {
@@ -237,16 +237,19 @@ async function ingest(recent?: number) {
   conn.closeSync();
 }
 
-// ─── CLI ─────────────────────────────────────────────────────────────────────
-const { values } = parseArgs({
-  options: {
-    recent: { type: "string", short: "r" },
-    all: { type: "boolean" },
-  },
-});
+// ─── CLI (only when run directly) ────────────────────────────────────────────
+const isMain = process.argv[1]?.includes("ingest");
+if (isMain) {
+  const { values } = parseArgs({
+    options: {
+      recent: { type: "string", short: "r" },
+      all: { type: "boolean" },
+    },
+  });
 
-const recentN = values.all ? undefined : Number(values.recent ?? 1);
-ingest(recentN).catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+  const recentN = values.all ? undefined : Number(values.recent ?? 1);
+  ingest(recentN).catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
