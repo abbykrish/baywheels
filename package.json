@@ -1,0 +1,12 @@
+{
+  "name": "baywheels",
+  "private": true,
+  "scripts": {
+    "setup": "cd backend && npm install && cd ../frontend && npm install",
+    "dev": "npm run dev:api & npm run dev:frontend & wait",
+    "dev:api": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "ingest": "cd backend && npm run ingest",
+    "ingest:all": "cd backend && npm run ingest:all"
+  }
+}

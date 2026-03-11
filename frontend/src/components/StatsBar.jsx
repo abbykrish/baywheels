@@ -1,0 +1,43 @@
+import React from "react";
+
+function fmt(n) {
+  if (n == null) return "\u2014";
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+  return n.toLocaleString();
+}
+
+function formatHour(h) {
+  if (h == null) return "\u2014";
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hr = h % 12 || 12;
+  return `${hr} ${ampm}`;
+}
+
+const STATS_CONFIG = [
+  { key: "total_trips", label: "Total Trips", format: fmt },
+  { key: "active_stations", label: "Stations", format: fmt },
+  { key: "avg_duration_min", label: "Avg Duration", format: (v) => v ? `${v} min` : "\u2014" },
+  { key: "member_trips", label: "Member Trips", format: fmt },
+  { key: "casual_trips", label: "Casual Trips", format: fmt },
+  { key: "busiest_station", label: "Busiest Station", format: (v) => v || "\u2014" },
+  { key: "peak_hour", label: "Peak Hour", format: formatHour },
+];
+
+export default function StatsBar({ stats, loading }) {
+  return (
+    <div className="absolute top-0 left-0 right-0 z-10 bg-white/92 backdrop-blur-md border-b border-black/8 px-6 py-3 flex items-center gap-8">
+      <div className="text-lg font-bold text-gray-900 whitespace-nowrap tracking-tight">Bay Wheels</div>
+      <div className="flex gap-6 flex-1 overflow-auto">
+        {STATS_CONFIG.map(({ key, label, format }) => (
+          <div key={key} className="flex flex-col min-w-[80px]">
+            <div className="text-base font-semibold text-blue-700">
+              {loading ? "..." : format(stats?.[key])}
+            </div>
+            <div className="text-[10px] uppercase tracking-wide text-gray-400 mt-0.5">{label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
