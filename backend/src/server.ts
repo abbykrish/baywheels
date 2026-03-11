@@ -299,6 +299,22 @@ app.get("/api/route-lookup", async (c) => {
   });
 });
 
+// ─── /api/reset-db (drop and recreate tables) ───────────────────────────────
+app.post("/api/reset-db", async (c) => {
+  const secret = c.req.header("x-ingest-key");
+  if (secret !== (process.env.INGEST_KEY || "local")) {
+    return c.json({ error: "unauthorized" }, 401);
+  }
+  const conn = await getConnection();
+  try {
+    await conn.run("DROP TABLE IF EXISTS trips");
+    await conn.run("DROP TABLE IF EXISTS ingestion_log");
+    return c.json({ status: "tables dropped" });
+  } finally {
+    conn.closeSync();
+  }
+});
+
 // ─── /api/ingest (trigger ingestion) ─────────────────────────────────────────
 app.post("/api/ingest", async (c) => {
   const secret = c.req.header("x-ingest-key");

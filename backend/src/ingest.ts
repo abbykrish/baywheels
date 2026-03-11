@@ -173,7 +173,7 @@ export async function ingest(recent?: number) {
   // Create tables if they don't exist
   await conn.run(`
     CREATE TABLE IF NOT EXISTS trips (
-      ride_id VARCHAR PRIMARY KEY,
+      ride_id VARCHAR,
       rideable_type VARCHAR,
       started_at TIMESTAMP,
       ended_at TIMESTAMP,
