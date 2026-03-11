@@ -6,6 +6,8 @@
     "dev": "npm run dev:api & npm run dev:frontend & wait",
     "dev:api": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && npm run start",
     "ingest": "cd backend && npm run ingest",
     "ingest:all": "cd backend && npm run ingest:all"
   }

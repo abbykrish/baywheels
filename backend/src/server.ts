@@ -1,10 +1,13 @@
+import path from "path";
+import fs from "fs";
 import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { getConnection } from "./db.js";
 
 const app = new Hono();
-app.use("/*", cors());
+app.use("/api/*", cors());
 
 /** Run a read-only query and return row objects. */
 async function query(sql: string): Promise<Record<string, unknown>[]> {
@@ -295,6 +298,17 @@ app.get("/api/route-lookup", async (c) => {
       r.to_lat != null ? [Number(r.to_lng), Number(r.to_lat)] : null,
   });
 });
+
+// ─── Serve frontend static build in production ──────────────────────────────
+const staticDir = path.resolve(import.meta.dirname, "..", "..", "frontend", "dist");
+if (fs.existsSync(staticDir)) {
+  app.use("/*", serveStatic({ root: path.relative(process.cwd(), staticDir) + "/" }));
+  // SPA fallback — serve index.html for non-API, non-file routes
+  app.get("*", (c) => {
+    const html = fs.readFileSync(path.join(staticDir, "index.html"), "utf-8");
+    return c.html(html);
+  });
+}
 
 // ─── Start server ────────────────────────────────────────────────────────────
 const port = Number(process.env.PORT ?? 8000);
