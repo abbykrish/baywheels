@@ -1,9 +1,13 @@
 import path from "path";
 import { DuckDBInstance } from "@duckdb/node-api";
 
-const DB_PATH =
-  process.env.BAYWHEELS_DB ??
-  path.resolve(import.meta.dirname, "..", "..", "data", "baywheels.duckdb");
+const MOTHERDUCK_TOKEN = process.env.MOTHERDUCK_TOKEN;
+
+// Use MotherDuck if token is set, otherwise fall back to local file
+const DB_PATH = MOTHERDUCK_TOKEN
+  ? `md:baywheels?motherduck_token=${MOTHERDUCK_TOKEN}`
+  : process.env.BAYWHEELS_DB ??
+    path.resolve(import.meta.dirname, "..", "..", "data", "baywheels.duckdb");
 
 let instance: DuckDBInstance | null = null;
 
