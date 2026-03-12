@@ -42,8 +42,8 @@ export async function refreshSummaries(): Promise<void> {
       sum(epoch(ended_at - started_at)) AS duration_sum_sec,
       count(*) AS duration_count,
       count(DISTINCT date_trunc('day', started_at)) AS active_days,
-      sum(CASE WHEN member_casual = 'member' THEN 1 ELSE 0 END) AS member_trips,
-      sum(CASE WHEN member_casual = 'casual' THEN 1 ELSE 0 END) AS casual_trips,
+      sum(CASE WHEN member_casual IN ('member', 'Subscriber') THEN 1 ELSE 0 END) AS member_trips,
+      sum(CASE WHEN member_casual IN ('casual', 'Customer') THEN 1 ELSE 0 END) AS casual_trips,
       sum(CASE WHEN start_station_name IS NULL OR start_station_name = '' THEN 1 ELSE 0 END) AS stationless_trips
     FROM trips
     GROUP BY month
@@ -55,8 +55,8 @@ export async function refreshSummaries(): Promise<void> {
       date_trunc('month', started_at)::DATE AS month,
       extract('hour' FROM started_at)::INT AS hour,
       count(*) AS trips,
-      sum(CASE WHEN member_casual = 'member' THEN 1 ELSE 0 END) AS member_trips,
-      sum(CASE WHEN member_casual = 'casual' THEN 1 ELSE 0 END) AS casual_trips
+      sum(CASE WHEN member_casual IN ('member', 'Subscriber') THEN 1 ELSE 0 END) AS member_trips,
+      sum(CASE WHEN member_casual IN ('casual', 'Customer') THEN 1 ELSE 0 END) AS casual_trips
     FROM trips
     GROUP BY month, hour
   `);
