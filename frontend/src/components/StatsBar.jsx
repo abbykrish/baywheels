@@ -25,7 +25,15 @@ const STATS_CONFIG = [
   { key: "peak_hour", label: "Peak Hour", format: formatHour },
 ];
 
-export default function StatsBar({ stats, loading }) {
+const LIVE_STATS_CONFIG = [
+  { key: "total_ebikes", label: "Ebikes Available", format: fmt },
+  { key: "station_count", label: "Stations", format: fmt },
+  { key: "stations_at_zero_ebikes", label: "At Zero Ebikes", format: fmt },
+  { key: "free_bike_count", label: "Free Bikes", format: fmt },
+  { key: "last_poll", label: "Last Poll", format: (v) => v ? new Date(v).toLocaleTimeString() : "\u2014" },
+];
+
+export default function StatsBar({ stats, loading, activeLayer, liveMeta }) {
   return (
     <div className="absolute top-0 left-0 right-0 z-10 bg-white/92 backdrop-blur-md border-b border-black/8 px-6 py-3 flex items-center gap-8">
       <div className="whitespace-nowrap">
@@ -33,10 +41,12 @@ export default function StatsBar({ stats, loading }) {
         <div className="text-[10px] text-gray-400">fun insights from data published by <a href="https://www.lyft.com/bikes/bay-wheels/system-data" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">Lyft</a></div>
       </div>
       <div className="flex gap-6 flex-1 overflow-auto">
-        {STATS_CONFIG.map(({ key, label, format }) => (
+        {(activeLayer === "live" ? LIVE_STATS_CONFIG : STATS_CONFIG).map(({ key, label, format }) => (
           <div key={key} className="flex flex-col min-w-[80px]">
-            <div className="text-base font-semibold text-blue-700">
-              {loading ? "..." : format(stats?.[key])}
+            <div className="text-base font-semibold text-purple-600">
+              {activeLayer === "live"
+                ? format(liveMeta?.[key])
+                : loading ? "..." : format(stats?.[key])}
             </div>
             <div className="text-[10px] uppercase tracking-wide text-gray-400 mt-0.5">{label}</div>
           </div>

@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
-    "ingest": "tsx src/ingest.ts",
-    "ingest:all": "tsx src/ingest.ts --all"
+    "dev": "tsx watch --env-file=.env src/server.ts",
+    "start": "tsx --env-file=.env src/server.ts",
+    "ingest": "tsx --env-file=.env src/ingest.ts",
+    "ingest:all": "tsx --env-file=.env src/ingest.ts --all"
   },
   "dependencies": {
     "@duckdb/node-api": "^1.4.4-r.3",

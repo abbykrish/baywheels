@@ -13,7 +13,8 @@ export async function getConnection(): Promise<DuckDBConnection> {
   if (!instance) {
     instance = await DuckDBInstance.create(DB_PATH);
     const setup = await instance.connect();
-    await setup.run("SET memory_limit = '512MB'");
+    await setup.run("SET memory_limit = '2GB'");
+    await setup.run("SET preserve_insertion_order = false");
     setup.closeSync();
   }
   if (!persistentConn) {

@@ -2,9 +2,11 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { query, refreshSummaries } from "./db.js";
 import { ingest } from "./ingest.js";
+import { gbfsApp } from "./gbfs-routes.js";
 
 export const app = new Hono();
 app.use("/api/*", cors());
+app.route("/", gbfsApp);
 
 // ─── /api/ingest ──────────────────────────────────────────────────────────────
 const INGEST_TOKEN = process.env.INGEST_TOKEN;

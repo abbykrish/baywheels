@@ -41,7 +41,15 @@ function densityColor(t) {
   return [235 + s * (220 - 235), 140 + s * (38 - 140), 45 + s * (38 - 45), 200 + t * 40];
 }
 
-export default function MapView({ flows, stations, activeLayer }) {
+function ebikeFillColor(station) {
+  if (!station.capacity || station.capacity === 0) return [150, 150, 150, 180];
+  const ratio = station.num_ebikes_available / station.capacity;
+  if (ratio >= 0.5) return [34, 197, 94, 200];   // green
+  if (ratio >= 0.2) return [234, 179, 8, 200];    // yellow
+  return [220, 38, 38, 200];                       // red
+}
+
+export default function MapView({ flows, stations, activeLayer, liveStations = [], liveBikes = [], liveTrends = [], highlightedStationId = null }) {
   const maxCount = useMemo(() => {
     if (!flows.length) return 1;
     return Math.max(...flows.map((f) => f.count));
@@ -115,8 +123,88 @@ export default function MapView({ flows, stations, activeLayer }) {
       );
     }
 
+    if (activeLayer === "live") {
+      result.push(
+        new ScatterplotLayer({
+          id: "live-stations",
+          data: liveStations,
+          getPosition: (d) => [d.lon, d.lat],
+          getRadius: (d) => 25 + Math.sqrt(d.capacity || 1) * 8,
+          getFillColor: (d) => ebikeFillColor(d),
+          radiusMinPixels: 4,
+          radiusMaxPixels: 20,
+          pickable: true,
+          stroked: true,
+          getLineColor: [0, 0, 0, 40],
+          lineWidthMinPixels: 1,
+        })
+      );
+      result.push(
+        new ScatterplotLayer({
+          id: "live-bikes",
+          data: liveBikes,
+          getPosition: (d) => [d.lon, d.lat],
+          getRadius: 15,
+          getFillColor: [59, 130, 246, 180],
+          radiusMinPixels: 2,
+          radiusMaxPixels: 6,
+          pickable: true,
+        })
+      );
+
+      // Trend indicators: green/red rings on stations that changed
+      if (liveTrends.length > 0) {
+        result.push(
+          new ScatterplotLayer({
+            id: "live-trends",
+            data: liveTrends,
+            getPosition: (d) => [d.lon, d.lat],
+            getRadius: 150,
+            getFillColor: [0, 0, 0, 0],
+            radiusMinPixels: 12,
+            radiusMaxPixels: 28,
+            stroked: true,
+            getLineColor: (d) => d.bike_delta > 0 ? [34, 197, 94, 200] : [220, 38, 38, 200],
+            lineWidthMinPixels: 2,
+            pickable: true,
+          })
+        );
+      }
+    }
+
+    // Unified highlight ring for any hovered station
+    if (highlightedStationId) {
+      let highlightData = [];
+      // Check live stations (keyed by station_id)
+      const liveMatch = liveStations.find((s) => s.station_id === highlightedStationId);
+      if (liveMatch) {
+        highlightData = [{ position: [liveMatch.lon, liveMatch.lat] }];
+      }
+      // Check historical stations (keyed by id)
+      const histMatch = stations.find((s) => s.id === highlightedStationId);
+      if (histMatch) {
+        highlightData = [{ position: histMatch.position }];
+      }
+      if (highlightData.length) {
+        result.push(
+          new ScatterplotLayer({
+            id: "station-highlight",
+            data: highlightData,
+            getPosition: (d) => d.position,
+            getRadius: 200,
+            getFillColor: [255, 255, 255, 0],
+            radiusMinPixels: 18,
+            radiusMaxPixels: 40,
+            stroked: true,
+            getLineColor: [59, 130, 246, 255],
+            lineWidthMinPixels: 3,
+          })
+        );
+      }
+    }
+
     return result;
-  }, [flows, stations, activeLayer, maxCount]);
+  }, [flows, stations, activeLayer, maxCount, liveStations, liveBikes, liveTrends, highlightedStationId]);
 
   return (
     <DeckGL
@@ -136,6 +224,35 @@ function getTooltip({ object }) {
   if (object.from_name) {
     return {
       html: `<b>${object.from_name}</b> &rarr; <b>${object.to_name}</b><br/>${object.count.toLocaleString()} trips`,
+      style: TOOLTIP_STYLE,
+    };
+  }
+  // Live station tooltip
+  if (object.station_id && object.num_ebikes_available != null) {
+    const reported = object.last_reported
+      ? new Date(object.last_reported * 1000).toLocaleTimeString()
+      : "unknown";
+    return {
+      html: `<b>${object.name}</b><br/>Ebikes: ${object.num_ebikes_available}<br/>Bikes: ${object.num_bikes_available}<br/>Docks: ${object.num_docks_available}<br/>Last reported: ${reported}`,
+      style: TOOLTIP_STYLE,
+    };
+  }
+  // Trend tooltip
+  if (object.bike_delta != null && object.station_name) {
+    const sign = object.bike_delta > 0 ? "+" : "";
+    const esign = object.ebike_delta > 0 ? "+" : "";
+    return {
+      html: `<b>${object.station_name}</b><br/>Bikes: ${sign}${object.bike_delta} (now ${object.bikes_now})<br/>Ebikes: ${esign}${object.ebike_delta} (now ${object.ebikes_now})`,
+      style: TOOLTIP_STYLE,
+    };
+  }
+  // Live free bike tooltip
+  if (object.bike_id) {
+    const range = object.current_range_meters != null
+      ? `${(object.current_range_meters / 1000).toFixed(1)} km`
+      : "unknown";
+    return {
+      html: `<b>Free Bike</b><br/>ID: ${object.bike_id}<br/>Range: ${range}`,
       style: TOOLTIP_STYLE,
     };
   }

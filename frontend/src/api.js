@@ -51,3 +51,31 @@ export function getHourly(start, end) {
   const qs = params.toString();
   return fetchJSON(`/hourly${qs ? `?${qs}` : ""}`);
 }
+
+// ─── Live GBFS endpoints ────────────────────────────────────────────────────
+
+export function getLiveStations() {
+  return fetchJSON("/live/stations");
+}
+
+export function getLiveBikes() {
+  return fetchJSON("/live/bikes");
+}
+
+export function getLiveMeta() {
+  return fetchJSON("/live/meta");
+}
+
+export function getLiveCoverage(limit = 10) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return fetchJSON(`/live/coverage?${params}`);
+}
+
+export function getLiveTrends() {
+  return fetchJSON("/live/trends");
+}
+
+export function getStationHistory(stationId, hours = 24) {
+  const params = new URLSearchParams({ hours: String(hours) });
+  return fetchJSON(`/station-history/${encodeURIComponent(stationId)}?${params}`);
+}

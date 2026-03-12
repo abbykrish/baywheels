@@ -4,11 +4,12 @@ import StatsBar from "./components/StatsBar.jsx";
 import MapView from "./components/MapView.jsx";
 import HourlyChart from "./components/HourlyChart.jsx";
 import Legend from "./components/Legend.jsx";
+import LiveLegend from "./components/LiveLegend.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import MonthFilter from "./components/MonthFilter.jsx";
-import { getStats, getFlows, getStations, getHourly, getMonths } from "./api.js";
+import { getStats, getFlows, getStations, getHourly, getMonths, getLiveStations, getLiveBikes, getLiveMeta, getLiveCoverage, getLiveTrends } from "./api.js";
 
-const LAYERS = ["arcs", "heatmap", "stations"];
+const LAYERS = ["arcs", "heatmap", "stations", "live"];
 
 export default function App() {
   const [stats, setStats] = useState(null);
@@ -23,6 +24,14 @@ export default function App() {
 
   // "all" means no filter; otherwise "YYYY-MM-DD" of the month start
   const [selectedMonth, setSelectedMonth] = useState("all");
+
+  // Live layer state
+  const [liveStations, setLiveStations] = useState([]);
+  const [liveBikes, setLiveBikes] = useState([]);
+  const [liveMeta, setLiveMeta] = useState(null);
+  const [liveCoverage, setLiveCoverage] = useState({ emptiest: [], best: [] });
+  const [liveTrends, setLiveTrends] = useState([]);
+  const [highlightedStationId, setHighlightedStationId] = useState(null);
 
   // Load available months on mount
   useEffect(() => {
@@ -61,18 +70,47 @@ export default function App() {
     loadData();
   }, [loadData]);
 
+  // Live data fetching + auto-refresh
+  const loadLiveData = useCallback(async () => {
+    try {
+      const [s, b, m, cov, trends] = await Promise.all([
+        getLiveStations(),
+        getLiveBikes(),
+        getLiveMeta(),
+        getLiveCoverage(10),
+        getLiveTrends(),
+      ]);
+      setLiveStations(s);
+      setLiveBikes(b);
+      setLiveMeta(m);
+      setLiveCoverage(cov);
+      setLiveTrends(trends);
+    } catch (e) {
+      console.error("Live data fetch error:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeLayer !== "live") return;
+    loadLiveData();
+    const interval = setInterval(loadLiveData, 60_000);
+    return () => clearInterval(interval);
+  }, [activeLayer, loadLiveData]);
+
   return (
     <div className="w-full h-full relative">
-      <StatsBar stats={stats} loading={loading} />
-      <MapView flows={flows} stations={stations} activeLayer={activeLayer} />
+      <StatsBar stats={stats} loading={loading} activeLayer={activeLayer} liveMeta={liveMeta} />
+      <MapView flows={flows} stations={stations} activeLayer={activeLayer} liveStations={liveStations} liveBikes={liveBikes} liveTrends={liveTrends} highlightedStationId={highlightedStationId} />
 
       {/* Controls panel */}
-      <div className="absolute bottom-6 left-6 bg-white/92 backdrop-blur-md rounded-xl border border-black/8 shadow-md p-4 w-[280px] flex flex-col gap-3">
-        <MonthFilter
-          months={months}
-          selected={selectedMonth}
-          onChange={setSelectedMonth}
-        />
+      <div className="absolute bottom-6 left-6 bg-white/92 backdrop-blur-md rounded-xl border border-black/8 shadow-md p-4 w-[320px] flex flex-col gap-3">
+        {activeLayer !== "live" && (
+          <MonthFilter
+            months={months}
+            selected={selectedMonth}
+            onChange={setSelectedMonth}
+          />
+        )}
 
         <div className="flex flex-col gap-1.5">
           <label className="text-[11px] uppercase tracking-wide text-gray-400">Layer</label>
@@ -83,11 +121,11 @@ export default function App() {
                 onClick={() => setActiveLayer(l)}
                 className={`flex-1 py-1.5 text-xs rounded-md border cursor-pointer transition-all
                   ${activeLayer === l
-                    ? "bg-blue-700/10 border-blue-700/40 text-blue-700 font-semibold"
+                    ? "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold"
                     : "border-black/10 bg-transparent text-gray-500"
                   }`}
               >
-                {l === "arcs" ? "Trip Flows" : l === "heatmap" ? "Heat Map" : "Stations"}
+                {l === "arcs" ? "Trip Flows" : l === "heatmap" ? "Heat Map" : l === "live" ? "Live" : "Stations"}
               </button>
             ))}
           </div>
@@ -105,21 +143,21 @@ export default function App() {
               step={10}
               value={arcCount}
               onChange={(e) => setArcCount(Number(e.target.value))}
-              className="w-full accent-blue-700"
+              className="w-full accent-purple-600"
             />
           </div>
         )}
 
-        <HourlyChart data={hourly} />
+        {activeLayer !== "live" && <HourlyChart data={hourly} />}
       </div>
 
-      <Sidebar flows={flows} stations={stations} />
-      <Legend activeLayer={activeLayer} />
+      <Sidebar flows={flows} stations={stations} activeLayer={activeLayer} liveCoverage={liveCoverage} liveTrends={liveTrends} onHoverStation={setHighlightedStationId} />
+      {activeLayer === "live" ? <LiveLegend /> : <Legend activeLayer={activeLayer} />}
 
       {error && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white border border-red-600 text-red-600 px-6 py-4 rounded-lg flex gap-3 items-center shadow-lg">
           {error}
-          <button onClick={loadData} className="px-3 py-1 bg-blue-700 text-white border-none rounded cursor-pointer">
+          <button onClick={loadData} className="px-3 py-1 bg-purple-600 text-white border-none rounded cursor-pointer">
             Retry
           </button>
         </div>
