@@ -1,6 +1,6 @@
 FROM node:20-slim
 
-# Install CA certs for TLS connections (needed by MotherDuck)
+# Install CA certs for TLS connections
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

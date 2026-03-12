@@ -18,7 +18,7 @@ import { createWriteStream } from "fs";
 import { Readable } from "stream";
 import { parseArgs } from "util";
 import { DuckDBInstance } from "@duckdb/node-api";
-import { DB_PATH } from "./db.js";
+import { DB_PATH, getConnection, refreshSummaries } from "./db.js";
 import yauzl from "yauzl";
 
 const BUCKET_URL = "https://s3.amazonaws.com/baywheels-data";
@@ -167,8 +167,7 @@ export async function ingest(recent?: number) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
 
-  const instance = await DuckDBInstance.create(DB_PATH);
-  const conn = await instance.connect();
+  const conn = await getConnection();
 
   // Create tables if they don't exist
   await conn.run(`
@@ -205,7 +204,6 @@ export async function ingest(recent?: number) {
 
   if (pending.length === 0) {
     console.log("All files already ingested. Nothing to do.");
-    conn.closeSync();
     return;
   }
 
@@ -234,7 +232,8 @@ export async function ingest(recent?: number) {
   const reader = await conn.runAndReadAll("SELECT count(*) AS cnt FROM trips");
   const [row] = reader.getRowObjectsJson();
   console.log(`\nIngestion complete. Total trips in database: ${Number(row.cnt).toLocaleString()}`);
-  conn.closeSync();
+
+  await refreshSummaries();
 }
 
 // ─── CLI (only when run directly) ────────────────────────────────────────────

@@ -1,26 +1,62 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { getConnection } from "./db.js";
+import { query, refreshSummaries } from "./db.js";
+import { ingest } from "./ingest.js";
 
 export const app = new Hono();
 app.use("/api/*", cors());
 
-/** Run a read-only query and return row objects. */
-async function query(sql: string): Promise<Record<string, unknown>[]> {
-  const conn = await getConnection();
-  try {
-    const reader = await conn.runAndReadAll(sql);
-    return reader.getRowObjectsJson();
-  } finally {
-    conn.closeSync();
+// ─── /api/ingest ──────────────────────────────────────────────────────────────
+const INGEST_TOKEN = process.env.INGEST_TOKEN;
+let ingesting = false;
+app.post("/api/ingest", async (c) => {
+  if (!INGEST_TOKEN) return c.json({ error: "Ingestion not configured" }, 503);
+  const auth = c.req.header("Authorization");
+  if (auth !== `Bearer ${INGEST_TOKEN}`) {
+    return c.json({ error: "Unauthorized" }, 401);
   }
+  if (ingesting) return c.json({ error: "Ingestion already in progress" }, 409);
+  const recent = c.req.query("recent");
+  const recentN = recent ? Number(recent) : 1;
+  ingesting = true;
+  try {
+    await ingest(recentN);
+    return c.json({ ok: true });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  } finally {
+    ingesting = false;
+  }
+});
+
+// ─── /api/refresh ─────────────────────────────────────────────────────────────
+app.post("/api/refresh", async (c) => {
+  if (!INGEST_TOKEN) return c.json({ error: "Not configured" }, 503);
+  const auth = c.req.header("Authorization");
+  if (auth !== `Bearer ${INGEST_TOKEN}`) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  try {
+    await refreshSummaries();
+    return c.json({ ok: true });
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500);
+  }
+});
+
+/** Build a WHERE clause for month-based filtering on summary tables. */
+function monthFilter(start?: string, end?: string): string {
+  const clauses: string[] = [];
+  if (start) clauses.push(`month >= '${start}'`);
+  if (end) clauses.push(`month < '${end}'`);
+  return clauses.length ? clauses.join(" AND ") : "1=1";
 }
 
-/** Build a WHERE clause fragment for optional date range. */
-function dateFilter(start?: string, end?: string): string {
+/** Build a WHERE clause for day-based filtering. */
+function dayFilter(start?: string, end?: string): string {
   const clauses: string[] = [];
-  if (start) clauses.push(`started_at >= '${start}'`);
-  if (end) clauses.push(`started_at < '${end}'`);
+  if (start) clauses.push(`day >= '${start}'`);
+  if (end) clauses.push(`day < '${end}'`);
   return clauses.length ? clauses.join(" AND ") : "1=1";
 }
 
@@ -28,41 +64,46 @@ function dateFilter(start?: string, end?: string): string {
 app.get("/api/stats", async (c) => {
   const start = c.req.query("start");
   const end = c.req.query("end");
-  const df = dateFilter(start, end);
+  const mf = monthFilter(start, end);
 
   const [stats] = await query(`
     SELECT
-      count(*)                                             AS total_trips,
-      count(DISTINCT start_station_id)                     AS active_stations,
-      round(avg(epoch(ended_at - started_at)) / 60, 1)    AS avg_duration_min,
-      count(DISTINCT date_trunc('day', started_at))        AS active_days,
-      sum(CASE WHEN member_casual = 'member' THEN 1 ELSE 0 END) AS member_trips,
-      sum(CASE WHEN member_casual = 'casual' THEN 1 ELSE 0 END) AS casual_trips
-    FROM trips
-    WHERE ${df}
+      sum(total_trips) AS total_trips,
+      round(sum(duration_sum_sec) / sum(duration_count) / 60, 1) AS avg_duration_min,
+      sum(active_days) AS active_days,
+      sum(member_trips) AS member_trips,
+      sum(casual_trips) AS casual_trips
+    FROM monthly_stats
+    WHERE ${mf}
+  `);
+
+  const [stationCount] = await query(`
+    SELECT count(DISTINCT start_station_id) AS active_stations
+    FROM monthly_stations
+    WHERE ${mf}
   `);
 
   const [busiest] = await query(`
-    SELECT start_station_name, count(*) AS cnt
-    FROM trips
-    WHERE start_station_name IS NOT NULL AND start_station_name != '' AND ${df}
+    SELECT start_station_name, sum(departures) AS cnt
+    FROM monthly_stations
+    WHERE ${mf}
     GROUP BY start_station_name
     ORDER BY cnt DESC
     LIMIT 1
   `);
 
   const [peak] = await query(`
-    SELECT extract('hour' FROM started_at) AS hr, count(*) AS cnt
-    FROM trips
-    WHERE ${df}
-    GROUP BY hr
+    SELECT hour AS hr, sum(trips) AS cnt
+    FROM monthly_hourly
+    WHERE ${mf}
+    GROUP BY hour
     ORDER BY cnt DESC
     LIMIT 1
   `);
 
   return c.json({
     total_trips: Number(stats.total_trips),
-    active_stations: Number(stats.active_stations),
+    active_stations: Number(stationCount.active_stations),
     avg_duration_min: Number(stats.avg_duration_min ?? 0),
     active_days: Number(stats.active_days),
     member_trips: Number(stats.member_trips),
@@ -78,7 +119,7 @@ app.get("/api/flows", async (c) => {
   const start = c.req.query("start");
   const end = c.req.query("end");
   const limit = Number(c.req.query("limit") ?? 200);
-  const df = dateFilter(start, end);
+  const mf = monthFilter(start, end);
 
   const rows = await query(`
     SELECT
@@ -88,13 +129,9 @@ app.get("/api/flows", async (c) => {
       round(avg(start_lng), 5) AS start_lng,
       round(avg(end_lat), 5)   AS end_lat,
       round(avg(end_lng), 5)   AS end_lng,
-      count(*)                 AS trip_count
-    FROM trips
-    WHERE start_station_name IS NOT NULL AND start_station_name != ''
-      AND end_station_name IS NOT NULL AND end_station_name != ''
-      AND start_station_name != end_station_name
-      AND start_lat IS NOT NULL AND end_lat IS NOT NULL
-      AND ${df}
+      sum(trip_count)           AS trip_count
+    FROM monthly_flows
+    WHERE ${mf}
     GROUP BY start_station_name, end_station_name
     ORDER BY trip_count DESC
     LIMIT ${limit}
@@ -115,19 +152,17 @@ app.get("/api/flows", async (c) => {
 app.get("/api/stations", async (c) => {
   const start = c.req.query("start");
   const end = c.req.query("end");
-  const df = dateFilter(start, end);
+  const mf = monthFilter(start, end);
 
   const rows = await query(`
     SELECT
       start_station_name,
       start_station_id,
-      round(avg(start_lat), 5) AS lat,
-      round(avg(start_lng), 5) AS lng,
-      count(*)                 AS departures
-    FROM trips
-    WHERE start_station_name IS NOT NULL AND start_station_name != ''
-      AND start_lat IS NOT NULL
-      AND ${df}
+      round(avg(lat), 5) AS lat,
+      round(avg(lng), 5) AS lng,
+      sum(departures) AS departures
+    FROM monthly_stations
+    WHERE ${mf}
     GROUP BY start_station_name, start_station_id
     ORDER BY departures DESC
   `);
@@ -146,16 +181,16 @@ app.get("/api/stations", async (c) => {
 app.get("/api/hourly", async (c) => {
   const start = c.req.query("start");
   const end = c.req.query("end");
-  const df = dateFilter(start, end);
+  const mf = monthFilter(start, end);
 
   const rows = await query(`
     SELECT
-      extract('hour' FROM started_at) AS hour,
-      count(*) AS trips,
-      sum(CASE WHEN member_casual = 'member' THEN 1 ELSE 0 END) AS member_trips,
-      sum(CASE WHEN member_casual = 'casual' THEN 1 ELSE 0 END) AS casual_trips
-    FROM trips
-    WHERE ${df}
+      hour,
+      sum(trips) AS trips,
+      sum(member_trips) AS member_trips,
+      sum(casual_trips) AS casual_trips
+    FROM monthly_hourly
+    WHERE ${mf}
     GROUP BY hour
     ORDER BY hour
   `);
@@ -174,15 +209,12 @@ app.get("/api/hourly", async (c) => {
 app.get("/api/daily", async (c) => {
   const start = c.req.query("start");
   const end = c.req.query("end");
-  const df = dateFilter(start, end);
+  const df = dayFilter(start, end);
 
   const rows = await query(`
-    SELECT
-      cast(date_trunc('day', started_at) AS DATE) AS day,
-      count(*) AS trips
-    FROM trips
+    SELECT day, trips
+    FROM daily_trips
     WHERE ${df}
-    GROUP BY day
     ORDER BY day
   `);
 
@@ -197,11 +229,8 @@ app.get("/api/daily", async (c) => {
 // ─── /api/months ─────────────────────────────────────────────────────────────
 app.get("/api/months", async (c) => {
   const rows = await query(`
-    SELECT
-      date_trunc('month', started_at)::DATE AS month,
-      count(*) AS trips
-    FROM trips
-    GROUP BY month
+    SELECT month, total_trips AS trips
+    FROM monthly_stats
     ORDER BY month DESC
   `);
 
@@ -216,14 +245,12 @@ app.get("/api/months", async (c) => {
 // ─── /api/station-names ──────────────────────────────────────────────────────
 app.get("/api/station-names", async (c) => {
   const q = c.req.query("q");
-  const filter = q ? `AND start_station_name ILIKE '%${q.replace(/'/g, "''")}%'` : "";
+  const filter = q ? `WHERE start_station_name ILIKE '%${q.replace(/'/g, "''")}%'` : "";
 
   const rows = await query(`
-    SELECT DISTINCT start_station_name
-    FROM trips
-    WHERE start_station_name IS NOT NULL AND start_station_name != ''
-      ${filter}
-    ORDER BY start_station_name
+    SELECT start_station_name
+    FROM station_names
+    ${filter}
     LIMIT 20
   `);
 
