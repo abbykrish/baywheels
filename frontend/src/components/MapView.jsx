@@ -96,14 +96,15 @@ export default function MapView({ flows, stations, activeLayer }) {
     }
 
     if (activeLayer === "stations") {
-      const maxDep = Math.max(...stations.map((s) => s.departures), 1);
+      const total = (s) => s.departures + s.arrivals;
+      const maxTotal = Math.max(...stations.map(total), 1);
       result.push(
         new ScatterplotLayer({
           id: "station-circles",
           data: stations,
           getPosition: (d) => d.position,
-          getRadius: (d) => 30 + Math.sqrt(d.departures / maxDep) * 200,
-          getFillColor: (d) => densityColor(d.departures / maxDep),
+          getRadius: (d) => 30 + Math.sqrt(total(d) / maxTotal) * 200,
+          getFillColor: (d) => densityColor(total(d) / maxTotal),
           radiusMinPixels: 3,
           radiusMaxPixels: 25,
           pickable: true,
@@ -140,7 +141,7 @@ function getTooltip({ object }) {
   }
   if (object.name) {
     return {
-      html: `<b>${object.name}</b><br/>${object.departures.toLocaleString()} departures`,
+      html: `<b>${object.name}</b><br/>${object.departures.toLocaleString()} departures<br/>${object.arrivals.toLocaleString()} arrivals`,
       style: TOOLTIP_STYLE,
     };
   }

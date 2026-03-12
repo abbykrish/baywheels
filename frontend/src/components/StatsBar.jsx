@@ -20,6 +20,7 @@ const STATS_CONFIG = [
   { key: "avg_duration_min", label: "Avg Duration", format: (v) => v ? `${v} min` : "\u2014" },
   { key: "member_trips", label: "Member Trips", format: fmt },
   { key: "casual_trips", label: "Casual Trips", format: fmt },
+  { key: "stationless_trips", label: "Stationless", format: fmt },
   { key: "busiest_station", label: "Busiest Station", format: (v) => v || "\u2014" },
   { key: "peak_hour", label: "Peak Hour", format: formatHour },
 ];

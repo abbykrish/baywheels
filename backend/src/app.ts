@@ -72,22 +72,23 @@ app.get("/api/stats", async (c) => {
       round(sum(duration_sum_sec) / sum(duration_count) / 60, 1) AS avg_duration_min,
       sum(active_days) AS active_days,
       sum(member_trips) AS member_trips,
-      sum(casual_trips) AS casual_trips
+      sum(casual_trips) AS casual_trips,
+      sum(stationless_trips) AS stationless_trips
     FROM monthly_stats
     WHERE ${mf}
   `);
 
   const [stationCount] = await query(`
-    SELECT count(DISTINCT start_station_id) AS active_stations
+    SELECT count(DISTINCT station_id) AS active_stations
     FROM monthly_stations
     WHERE ${mf}
   `);
 
   const [busiest] = await query(`
-    SELECT start_station_name, sum(departures) AS cnt
+    SELECT station_name, sum(departures) AS cnt
     FROM monthly_stations
     WHERE ${mf}
-    GROUP BY start_station_name
+    GROUP BY station_name
     ORDER BY cnt DESC
     LIMIT 1
   `);
@@ -108,7 +109,8 @@ app.get("/api/stats", async (c) => {
     active_days: Number(stats.active_days),
     member_trips: Number(stats.member_trips),
     casual_trips: Number(stats.casual_trips),
-    busiest_station: busiest?.start_station_name ?? null,
+    stationless_trips: Number(stats.stationless_trips),
+    busiest_station: busiest?.station_name ?? null,
     busiest_station_trips: Number(busiest?.cnt ?? 0),
     peak_hour: peak?.hr != null ? Number(peak.hr) : null,
   });
@@ -156,23 +158,25 @@ app.get("/api/stations", async (c) => {
 
   const rows = await query(`
     SELECT
-      start_station_name,
-      start_station_id,
+      station_name,
+      station_id,
       round(avg(lat), 5) AS lat,
       round(avg(lng), 5) AS lng,
-      sum(departures) AS departures
+      sum(departures) AS departures,
+      sum(arrivals) AS arrivals
     FROM monthly_stations
     WHERE ${mf}
-    GROUP BY start_station_name, start_station_id
+    GROUP BY station_name, station_id
     ORDER BY departures DESC
   `);
 
   return c.json(
     rows.map((r) => ({
-      name: r.start_station_name,
-      id: r.start_station_id,
+      name: r.station_name,
+      id: r.station_id,
       position: [Number(r.lng), Number(r.lat)],
       departures: Number(r.departures),
+      arrivals: Number(r.arrivals),
     }))
   );
 });
