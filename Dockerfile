@@ -1,5 +1,8 @@
 FROM node:20-slim
 
+# Install CA certs for TLS connections (needed by MotherDuck)
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Install backend deps
@@ -16,6 +19,6 @@ RUN cd frontend && npm run build
 COPY backend/ backend/
 COPY package.json .
 
-EXPOSE 8000
+EXPOSE 8080
 
 CMD ["npm", "run", "start"]

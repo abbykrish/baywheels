@@ -1,0 +1,8 @@
+data/
+node_modules/
+.venv/
+.env
+.git/
+.vercel/
+*.duckdb
+*.duckdb.wal

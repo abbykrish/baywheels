@@ -14,6 +14,10 @@ let instance: DuckDBInstance | null = null;
 export async function getConnection() {
   if (!instance) {
     instance = await DuckDBInstance.create(DB_PATH);
+    // Limit DuckDB memory to avoid OOM on constrained VMs
+    const conn = await instance.connect();
+    await conn.run("SET memory_limit = '512MB'");
+    conn.closeSync();
   }
   return instance.connect();
 }
