@@ -252,7 +252,7 @@ function getTooltip({ object }) {
       ? `${(object.current_range_meters / 1000).toFixed(1)} km`
       : "unknown";
     return {
-      html: `<b>Free Bike</b><br/>ID: ${object.bike_id}<br/>Range: ${range}`,
+      html: `<b>Loose Bike</b><br/>ID: ${object.bike_id}<br/>Range: ${range}`,
       style: TOOLTIP_STYLE,
     };
   }

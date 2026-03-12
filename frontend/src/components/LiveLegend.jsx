@@ -21,7 +21,7 @@ export default function LiveLegend() {
       <div className="h-px bg-black/8 my-1" />
       <div className="flex items-center gap-2">
         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "rgb(59, 130, 246)" }} />
-        <span className="text-gray-600">Free bike</span>
+        <span className="text-gray-600">Loose bike</span>
       </div>
       <div className="h-px bg-black/8 my-1" />
       <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Recent Changes</div>

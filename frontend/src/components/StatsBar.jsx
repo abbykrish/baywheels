@@ -29,7 +29,7 @@ const LIVE_STATS_CONFIG = [
   { key: "total_ebikes", label: "Ebikes Available", format: fmt },
   { key: "station_count", label: "Stations", format: fmt },
   { key: "stations_at_zero_ebikes", label: "At Zero Ebikes", format: fmt },
-  { key: "free_bike_count", label: "Free Bikes", format: fmt },
+  { key: "free_bike_count", label: "Loose Bikes", format: fmt },
   { key: "last_poll", label: "Last Poll", format: (v) => v ? new Date(v).toLocaleTimeString() : "\u2014" },
 ];
 
