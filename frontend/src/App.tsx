@@ -10,7 +10,7 @@ import MonthFilter from "./components/MonthFilter";
 import StationModal from "./components/StationModal";
 import { getStats, getFlows, getStations, getHourly, getMonths, getLiveStations, getLiveBikes, getLiveMeta, getLiveCoverage, getLiveTrends } from "./api";
 
-const LAYERS = ["arcs", "heatmap", "stations", "live"];
+const LAYERS = ["live", "arcs", "heatmap", "stations"];
 
 export default function App() {
   const [stats, setStats] = useState(null);
@@ -21,7 +21,7 @@ export default function App() {
   const [activeLayer, setActiveLayer] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
-    return LAYERS.includes(tab) ? tab : "arcs";
+    return LAYERS.includes(tab) ? tab : "live";
   });
   const [arcCount, setArcCount] = useState(150);
   const [loading, setLoading] = useState(true);
@@ -42,7 +42,7 @@ export default function App() {
   // Sync active layer to URL query param
   useEffect(() => {
     const url = new URL(window.location);
-    if (activeLayer === "arcs") {
+    if (activeLayer === "live") {
       url.searchParams.delete("tab");
     } else {
       url.searchParams.set("tab", activeLayer);
@@ -142,7 +142,7 @@ export default function App() {
                     : "border-black/10 bg-transparent text-gray-500"
                   }`}
               >
-                {l === "arcs" ? "Trip Flows" : l === "heatmap" ? "Heat Map" : l === "live" ? "Live" : "Stations"}
+                {l === "live" ? "Live" : l === "arcs" ? "Historical" : l === "heatmap" ? "Heat Map" : "Stations"}
               </button>
             ))}
           </div>
