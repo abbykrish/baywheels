@@ -2,8 +2,8 @@ import React from "react";
 
 const STATION_COLORS = [
   { color: "rgb(34, 197, 94)", label: "50%+ ebikes" },
-  { color: "rgb(234, 179, 8)", label: "20-50% ebikes" },
-  { color: "rgb(220, 38, 38)", label: "< 20% ebikes" },
+  { color: "rgb(234, 179, 8)", label: "10-50% ebikes" },
+  { color: "rgb(220, 38, 38)", label: "< 10% ebikes" },
 ];
 
 export default function LiveLegend() {

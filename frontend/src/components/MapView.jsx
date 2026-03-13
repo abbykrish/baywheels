@@ -45,7 +45,7 @@ function ebikeFillColor(station) {
   if (!station.capacity || station.capacity === 0) return [150, 150, 150, 180];
   const ratio = station.num_ebikes_available / station.capacity;
   if (ratio >= 0.5) return [34, 197, 94, 200];   // green
-  if (ratio >= 0.2) return [234, 179, 8, 200];    // yellow
+  if (ratio >= 0.1) return [234, 179, 8, 200];    // yellow
   return [220, 38, 38, 200];                       // red
 }
 
