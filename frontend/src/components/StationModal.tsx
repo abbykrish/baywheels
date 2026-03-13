@@ -120,14 +120,18 @@ export default function StationModal({ station, onClose }: Props) {
   const [hours, setHours] = useState(24);
   const [loading, setLoading] = useState(true);
 
+  const stationId = station?.station_id;
+
   useEffect(() => {
-    if (!station) return;
+    if (!stationId) return;
+    let cancelled = false;
     setLoading(true);
-    getStationHistory(station.station_id, hours)
-      .then(setHistory)
-      .catch(() => setHistory([]))
-      .finally(() => setLoading(false));
-  }, [station?.station_id, hours]);
+    getStationHistory(stationId, hours)
+      .then((data) => { if (!cancelled) setHistory(data); })
+      .catch(() => { if (!cancelled) setHistory([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [stationId, hours]);
 
   if (!station) return null;
 
@@ -199,6 +203,10 @@ export default function StationModal({ station, onClose }: Props) {
           </div>
           {loading ? (
             <div className="text-xs text-gray-400 text-center py-6">Loading...</div>
+          ) : history.length < 2 ? (
+            <div className="text-xs text-gray-400 text-center py-6">
+              Not enough data yet for {hours}h view. Snapshots are collected every 5 min.
+            </div>
           ) : (
             <MiniChart history={history} capacity={station.capacity} />
           )}
