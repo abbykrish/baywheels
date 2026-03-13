@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { getStationNames, getRouteLookup } from "../api.js";
+import { getStationNames, getRouteLookup } from "../api";
 
 function fmt(n) {
   if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
@@ -126,7 +126,7 @@ function StationInput({ value, onChange, placeholder }) {
 
 // ─── Coverage row (shared by emptiest + best) ───────────────────────────────
 
-function CoverageRow({ s, i, onHoverStation }) {
+function CoverageRow({ s, i, onHoverStation, onClickStation = null }) {
   const fillPct = Math.min(s.fill_pct, 100);
   const cap = s.capacity || 1;
   const ebikePct = Math.round((s.ebikes / cap) * 100);
@@ -136,6 +136,7 @@ function CoverageRow({ s, i, onHoverStation }) {
       className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded -mx-1 px-1 py-0.5 transition-colors"
       onMouseEnter={() => onHoverStation?.(s.station_id)}
       onMouseLeave={() => onHoverStation?.(null)}
+      onClick={() => onClickStation?.(s.station_id)}
     >
       <span className="w-5 text-right text-[11px] font-semibold text-gray-400 shrink-0">{i + 1}</span>
       <div className="flex-1 flex flex-col gap-0.5 min-w-0">
@@ -160,7 +161,7 @@ function CoverageRow({ s, i, onHoverStation }) {
 
 // ─── Section: Emptiest Stations ──────────────────────────────────────────────
 
-function EmptiestSection({ data, onHoverStation }) {
+function EmptiestSection({ data, onHoverStation, onClickStation = null }) {
   return (
     <Section
       label="Emptiest Stations"
@@ -171,7 +172,7 @@ function EmptiestSection({ data, onHoverStation }) {
           <div className="text-xs text-gray-400 text-center py-2">Waiting for live data...</div>
         )}
         {data.map((s, i) => (
-          <CoverageRow key={s.station_id} s={s} i={i} onHoverStation={onHoverStation} />
+          <CoverageRow key={s.station_id} s={s} i={i} onHoverStation={onHoverStation} onClickStation={onClickStation} />
         ))}
       </div>
     </Section>
@@ -180,7 +181,7 @@ function EmptiestSection({ data, onHoverStation }) {
 
 // ─── Section: Best Coverage ──────────────────────────────────────────────────
 
-function BestCoverageSection({ data, onHoverStation }) {
+function BestCoverageSection({ data, onHoverStation, onClickStation = null }) {
   return (
     <Section
       label="Best Coverage"
@@ -188,7 +189,7 @@ function BestCoverageSection({ data, onHoverStation }) {
     >
       <div className="flex flex-col gap-1.5">
         {data.map((s, i) => (
-          <CoverageRow key={s.station_id} s={s} i={i} onHoverStation={onHoverStation} />
+          <CoverageRow key={s.station_id} s={s} i={i} onHoverStation={onHoverStation} onClickStation={onClickStation} />
         ))}
       </div>
     </Section>
@@ -207,7 +208,7 @@ function DeltaBadge({ delta, label }) {
   );
 }
 
-function RecentChangesSection({ data, onHoverStation }) {
+function RecentChangesSection({ data, onHoverStation, onClickStation = null }) {
   return (
     <Section
       label="Recent Changes"
@@ -230,6 +231,7 @@ function RecentChangesSection({ data, onHoverStation }) {
               className="cursor-pointer hover:bg-gray-50 rounded -mx-1 px-1 py-1 transition-colors"
               onMouseEnter={() => onHoverStation?.(t.station_id)}
               onMouseLeave={() => onHoverStation?.(null)}
+              onClick={() => onClickStation?.(t.station_id)}
             >
               <div className="flex items-center gap-2">
                 <span className={`text-sm shrink-0 ${gaining ? "text-green-600" : "text-red-500"}`}>
@@ -386,17 +388,24 @@ function TopRoutesSection({ flows }) {
 
 // ─── Main sidebar ────────────────────────────────────────────────────────────
 
-export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation }) {
+export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation, onClickStation, liveStations = [] }) {
+  // Look up full live station object by station_id and fire onClickStation
+  function handleStationClick(stationId) {
+    if (!onClickStation) return;
+    const s = liveStations.find((s) => s.station_id === stationId);
+    if (s) onClickStation(s);
+  }
+
   return (
     <div className="absolute top-[68px] right-0 bottom-0 w-[360px] bg-white/95 backdrop-blur-md border-l border-black/8 shadow-md flex flex-col z-5">
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5">
         {activeLayer === "live" && (
           <>
-            <EmptiestSection data={liveCoverage.emptiest || []} onHoverStation={onHoverStation} />
+            <EmptiestSection data={liveCoverage.emptiest || []} onHoverStation={onHoverStation} onClickStation={handleStationClick} />
             <Divider />
-            <BestCoverageSection data={liveCoverage.best || []} onHoverStation={onHoverStation} />
+            <BestCoverageSection data={liveCoverage.best || []} onHoverStation={onHoverStation} onClickStation={handleStationClick} />
             <Divider />
-            <RecentChangesSection data={liveTrends} onHoverStation={onHoverStation} />
+            <RecentChangesSection data={liveTrends} onHoverStation={onHoverStation} onClickStation={handleStationClick} />
           </>
         )}
         {activeLayer !== "live" && (

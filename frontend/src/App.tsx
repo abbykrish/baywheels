@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { parseISO, addMonths, format } from "date-fns";
-import StatsBar from "./components/StatsBar.jsx";
-import MapView from "./components/MapView.jsx";
-import HourlyChart from "./components/HourlyChart.jsx";
-import Legend from "./components/Legend.jsx";
-import LiveLegend from "./components/LiveLegend.jsx";
-import Sidebar from "./components/Sidebar.jsx";
-import MonthFilter from "./components/MonthFilter.jsx";
-import { getStats, getFlows, getStations, getHourly, getMonths, getLiveStations, getLiveBikes, getLiveMeta, getLiveCoverage, getLiveTrends } from "./api.js";
+import StatsBar from "./components/StatsBar";
+import MapView from "./components/MapView";
+import HourlyChart from "./components/HourlyChart";
+import Legend from "./components/Legend";
+import LiveLegend from "./components/LiveLegend";
+import Sidebar from "./components/Sidebar";
+import MonthFilter from "./components/MonthFilter";
+import StationModal from "./components/StationModal";
+import { getStats, getFlows, getStations, getHourly, getMonths, getLiveStations, getLiveBikes, getLiveMeta, getLiveCoverage, getLiveTrends } from "./api";
 
 const LAYERS = ["arcs", "heatmap", "stations", "live"];
 
@@ -36,6 +37,7 @@ export default function App() {
   const [liveCoverage, setLiveCoverage] = useState({ emptiest: [], best: [] });
   const [liveTrends, setLiveTrends] = useState([]);
   const [highlightedStationId, setHighlightedStationId] = useState(null);
+  const [selectedStation, setSelectedStation] = useState(null);
 
   // Sync active layer to URL query param
   useEffect(() => {
@@ -115,7 +117,7 @@ export default function App() {
   return (
     <div className="w-full h-full relative">
       <StatsBar stats={stats} loading={loading} activeLayer={activeLayer} liveMeta={liveMeta} />
-      <MapView flows={flows} stations={stations} activeLayer={activeLayer} liveStations={liveStations} liveBikes={liveBikes} liveTrends={liveTrends} highlightedStationId={highlightedStationId} />
+      <MapView flows={flows} stations={stations} activeLayer={activeLayer} liveStations={liveStations} liveBikes={liveBikes} liveTrends={liveTrends} highlightedStationId={highlightedStationId} onClickStation={setSelectedStation} />
 
       {/* Controls panel */}
       <div className="absolute bottom-6 left-6 bg-white/92 backdrop-blur-md rounded-xl border border-black/8 shadow-md p-4 w-[320px] flex flex-col gap-3">
@@ -166,8 +168,9 @@ export default function App() {
         {activeLayer !== "live" && <HourlyChart data={hourly} />}
       </div>
 
-      <Sidebar flows={flows} stations={stations} activeLayer={activeLayer} liveCoverage={liveCoverage} liveTrends={liveTrends} onHoverStation={setHighlightedStationId} />
+      <Sidebar flows={flows} stations={stations} activeLayer={activeLayer} liveCoverage={liveCoverage} liveTrends={liveTrends} liveStations={liveStations} onHoverStation={setHighlightedStationId} onClickStation={setSelectedStation} />
       {activeLayer === "live" ? <LiveLegend /> : <Legend activeLayer={activeLayer} />}
+      <StationModal station={selectedStation} onClose={() => setSelectedStation(null)} />
 
       {error && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white border border-red-600 text-red-600 px-6 py-4 rounded-lg flex gap-3 items-center shadow-lg">

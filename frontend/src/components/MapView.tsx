@@ -49,7 +49,7 @@ function ebikeFillColor(station) {
   return [220, 38, 38, 200];                       // red
 }
 
-export default function MapView({ flows, stations, activeLayer, liveStations = [], liveBikes = [], liveTrends = [], highlightedStationId = null }) {
+export default function MapView({ flows, stations, activeLayer, liveStations = [], liveBikes = [], liveTrends = [], highlightedStationId = null, onClickStation = null }) {
   const maxCount = useMemo(() => {
     if (!flows.length) return 1;
     return Math.max(...flows.map((f) => f.count));
@@ -206,12 +206,34 @@ export default function MapView({ flows, stations, activeLayer, liveStations = [
     return result;
   }, [flows, stations, activeLayer, maxCount, liveStations, liveBikes, liveTrends, highlightedStationId]);
 
+  function handleClick(info) {
+    if (!info.object || !onClickStation) return;
+    const obj = info.object;
+    // Any object with station_id — resolve to full station object
+    if (obj.station_id) {
+      // Direct station object (has capacity field)
+      if (obj.capacity != null) {
+        onClickStation(obj);
+        return;
+      }
+      // Trend or other layer — look up the full station
+      const match = liveStations.find((s) => s.station_id === obj.station_id);
+      if (match) onClickStation(match);
+    }
+  }
+
+  function getCursor({ isHovering }) {
+    return isHovering ? "pointer" : "grab";
+  }
+
   return (
     <DeckGL
       initialViewState={INITIAL_VIEW}
       controller={true}
       layers={layers}
       getTooltip={getTooltip}
+      onClick={handleClick}
+      getCursor={getCursor}
       style={{ position: "absolute", inset: 0 }}
     >
       <Map mapStyle={MAP_STYLE} />
