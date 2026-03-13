@@ -130,8 +130,6 @@ gbfsApp.get("/api/live/trends", async (c) => {
 gbfsApp.get("/api/station-history/:stationId", async (c) => {
   const stationId = c.req.param("stationId");
   const hours = Number(c.req.query("hours") ?? 24);
-  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000)
-    .toISOString().replace("T", " ").slice(0, 19);
 
   const escapedId = stationId.replace(/'/g, "''");
 
@@ -143,7 +141,7 @@ gbfsApp.get("/api/station-history/:stationId", async (c) => {
       num_docks_available
     FROM gbfs_station_snapshots
     WHERE station_id = '${escapedId}'
-      AND snapshot_ts >= '${cutoff}'
+      AND snapshot_ts >= (now() - INTERVAL '${hours} hours')
     ORDER BY snapshot_ts
   `);
 

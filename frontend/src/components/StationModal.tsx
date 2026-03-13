@@ -189,7 +189,7 @@ export default function StationModal({ station, onClose }: Props) {
               {HOUR_OPTIONS.map((h) => (
                 <button
                   key={h}
-                  onClick={() => setHours(h)}
+                  onClick={(e) => { e.stopPropagation(); setHours(h); }}
                   className={`text-[10px] px-2 py-0.5 rounded border cursor-pointer transition-all ${
                     hours === h
                       ? "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold"
