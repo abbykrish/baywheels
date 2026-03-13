@@ -268,7 +268,7 @@ function getTooltip({ object }) {
   // Live free bike tooltip
   if (object.bike_id) {
     const range = object.current_range_meters != null
-      ? `${(object.current_range_meters / 1000).toFixed(1)} km`
+      ? `${(object.current_range_meters / 1609.34).toFixed(1)} mi`
       : "unknown";
     return {
       html: `<b>Loose Bike</b><br/>ID: ${object.bike_id}<br/>Range: ${range}`,
