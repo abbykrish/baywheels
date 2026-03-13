@@ -197,6 +197,16 @@ function BestCoverageSection({ data, onHoverStation }) {
 
 // ─── Section: Recent Changes ─────────────────────────────────────────────────
 
+function DeltaBadge({ delta, label }) {
+  if (delta === 0) return null;
+  const gaining = delta > 0;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${gaining ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+      {gaining ? "\u25B2" : "\u25BC"} {gaining ? "+" : ""}{delta} {label}
+    </span>
+  );
+}
+
 function RecentChangesSection({ data, onHoverStation }) {
   return (
     <Section
@@ -209,32 +219,36 @@ function RecentChangesSection({ data, onHoverStation }) {
         )}
         {data.slice(0, 15).map((t) => {
           const gaining = t.bike_delta > 0;
+          const classics = Math.max(0, t.bikes_now - t.ebikes_now);
+          const total = t.bikes_now + (t.docks_now || 0);
+          const cap = total || 1;
+          const ebikePct = Math.round((t.ebikes_now / cap) * 100);
+          const classicPct = Math.round((classics / cap) * 100);
           return (
             <div
               key={t.station_id}
-              className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded -mx-1 px-1 py-0.5 transition-colors"
+              className="cursor-pointer hover:bg-gray-50 rounded -mx-1 px-1 py-1 transition-colors"
               onMouseEnter={() => onHoverStation?.(t.station_id)}
               onMouseLeave={() => onHoverStation?.(null)}
             >
-              <span className={`text-sm shrink-0 ${gaining ? "text-green-600" : "text-red-500"}`}>
-                {gaining ? "\u25B2" : "\u25BC"}
-              </span>
-              <div className="flex-1 min-w-0">
-                <span className="text-[11px] text-gray-900 truncate block" title={t.station_name}>{t.station_name}</span>
-                <div className="flex gap-2 text-[9px] text-gray-400">
-                  <span>{t.bikes_now} bikes now</span>
-                  <span>{t.ebikes_now} ebikes</span>
-                </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm shrink-0 ${gaining ? "text-green-600" : "text-red-500"}`}>
+                  {gaining ? "\u25B2" : "\u25BC"}
+                </span>
+                <span className="text-[11px] text-gray-900 truncate flex-1" title={t.station_name}>{t.station_name}</span>
               </div>
-              <div className="shrink-0 text-right">
-                <div className={`text-[12px] font-bold ${gaining ? "text-green-600" : "text-red-500"}`}>
-                  {gaining ? "+" : ""}{t.bike_delta}
+              <div className="ml-6 mt-1">
+                <div className="h-1.5 rounded-full bg-gray-200 overflow-hidden flex">
+                  <div className="h-full bg-purple-500" style={{ width: `${ebikePct}%` }} />
+                  <div className="h-full bg-blue-400" style={{ width: `${classicPct}%` }} />
                 </div>
-                {t.ebike_delta !== 0 && (
-                  <div className={`text-[9px] ${t.ebike_delta > 0 ? "text-green-500" : "text-red-400"}`}>
-                    {t.ebike_delta > 0 ? "+" : ""}{t.ebike_delta} ebike
-                  </div>
-                )}
+                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                  <span className="text-[10px] text-purple-600 font-medium">{t.ebikes_now} ebike{t.ebikes_now !== 1 ? "s" : ""}</span>
+                  <span className="text-[10px] text-blue-500 font-medium">{classics} classic</span>
+                  <span className="text-[10px] text-gray-300">|</span>
+                  <DeltaBadge delta={t.bike_delta} label="bike" />
+                  <DeltaBadge delta={t.ebike_delta} label="ebike" />
+                </div>
               </div>
             </div>
           );

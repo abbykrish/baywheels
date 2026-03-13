@@ -86,7 +86,7 @@ gbfsApp.get("/api/live/trends", async (c) => {
       LIMIT 2
     ),
     recent AS (
-      SELECT s.station_id, s.num_bikes_available, s.num_ebikes_available, s.snapshot_ts,
+      SELECT s.station_id, s.num_bikes_available, s.num_ebikes_available, s.num_docks_available, s.snapshot_ts,
         row_number() OVER (PARTITION BY s.station_id ORDER BY s.snapshot_ts DESC) AS rn
       FROM gbfs_station_snapshots s
       WHERE s.snapshot_ts IN (SELECT snapshot_ts FROM snapshots)
@@ -98,6 +98,7 @@ gbfsApp.get("/api/live/trends", async (c) => {
       g.lon,
       cur.num_bikes_available AS bikes_now,
       cur.num_ebikes_available AS ebikes_now,
+      cur.num_docks_available AS docks_now,
       prev.num_bikes_available AS bikes_prev,
       prev.num_ebikes_available AS ebikes_prev,
       cur.num_bikes_available - prev.num_bikes_available AS bike_delta,
@@ -118,6 +119,7 @@ gbfsApp.get("/api/live/trends", async (c) => {
     lon: Number(r.lon),
     bikes_now: Number(r.bikes_now),
     ebikes_now: Number(r.ebikes_now),
+    docks_now: Number(r.docks_now),
     bike_delta: Number(r.bike_delta),
     ebike_delta: Number(r.ebike_delta),
   })));

@@ -152,7 +152,7 @@ export default function MapView({ flows, stations, activeLayer, liveStations = [
         })
       );
 
-      // Trend indicators: green/red rings on stations that changed
+      // Trend indicators: colored ring around stations that recently changed
       if (liveTrends.length > 0) {
         result.push(
           new ScatterplotLayer({
@@ -229,20 +229,17 @@ function getTooltip({ object }) {
   }
   // Live station tooltip
   if (object.station_id && object.num_ebikes_available != null) {
-    const reported = object.last_reported
-      ? new Date(object.last_reported * 1000).toLocaleTimeString()
-      : "unknown";
     return {
-      html: `<b>${object.name}</b><br/>Ebikes: ${object.num_ebikes_available}<br/>Bikes: ${object.num_bikes_available}<br/>Docks: ${object.num_docks_available}<br/>Last reported: ${reported}`,
+      html: `<b>${object.name}</b><br/>Ebikes: ${object.num_ebikes_available}<br/>Bikes: ${object.num_bikes_available}<br/>Docks: ${object.num_docks_available}`,
       style: TOOLTIP_STYLE,
     };
   }
   // Trend tooltip
   if (object.bike_delta != null && object.station_name) {
-    const sign = object.bike_delta > 0 ? "+" : "";
-    const esign = object.ebike_delta > 0 ? "+" : "";
+    const bSign = object.bike_delta > 0 ? "+" : "";
+    const eSign = object.ebike_delta > 0 ? "+" : "";
     return {
-      html: `<b>${object.station_name}</b><br/>Bikes: ${sign}${object.bike_delta} (now ${object.bikes_now})<br/>Ebikes: ${esign}${object.ebike_delta} (now ${object.ebikes_now})`,
+      html: `<b>${object.station_name}</b><br/>Ebikes: ${object.ebikes_now} (${eSign}${object.ebike_delta})<br/>Bikes: ${object.bikes_now} (${bSign}${object.bike_delta})<br/>Docks: ${object.docks_now ?? "\u2014"}<br/><span style="color:#999;font-style:italic">Changed in last 5 min</span>`,
       style: TOOLTIP_STYLE,
     };
   }

@@ -17,7 +17,11 @@ export default function App() {
   const [stations, setStations] = useState([]);
   const [hourly, setHourly] = useState([]);
   const [months, setMonths] = useState([]);
-  const [activeLayer, setActiveLayer] = useState("arcs");
+  const [activeLayer, setActiveLayer] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get("tab");
+    return LAYERS.includes(tab) ? tab : "arcs";
+  });
   const [arcCount, setArcCount] = useState(150);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -32,6 +36,17 @@ export default function App() {
   const [liveCoverage, setLiveCoverage] = useState({ emptiest: [], best: [] });
   const [liveTrends, setLiveTrends] = useState([]);
   const [highlightedStationId, setHighlightedStationId] = useState(null);
+
+  // Sync active layer to URL query param
+  useEffect(() => {
+    const url = new URL(window.location);
+    if (activeLayer === "arcs") {
+      url.searchParams.delete("tab");
+    } else {
+      url.searchParams.set("tab", activeLayer);
+    }
+    window.history.replaceState({}, "", url);
+  }, [activeLayer]);
 
   // Load available months on mount
   useEffect(() => {
