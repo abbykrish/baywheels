@@ -260,6 +260,10 @@ async function pollCycle(): Promise<void> {
     }));
 
     lastPollTime = now;
+
+    // Flush WAL to disk so data survives deploys
+    await conn.run("CHECKPOINT");
+
     console.log(`GBFS poll completed: ${statuses.length} stations, ${bikes.length} free bikes`);
   } catch (err: any) {
     console.error("GBFS poll error:", err.message);

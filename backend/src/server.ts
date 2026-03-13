@@ -4,6 +4,7 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { app } from "./app.js";
 import { startGbfsPoller, stopGbfsPoller } from "./gbfs.js";
+import { query } from "./db.js";
 
 // Serve frontend static build in production
 const staticDir = path.resolve(import.meta.dirname, "..", "..", "frontend", "dist");
@@ -24,9 +25,15 @@ serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, (info) => {
 
 // Graceful shutdown
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
-  process.on(signal, () => {
+  process.on(signal, async () => {
     console.log(`Received ${signal}, shutting down...`);
     stopGbfsPoller();
+    try {
+      await query("CHECKPOINT");
+      console.log("DuckDB checkpoint completed.");
+    } catch (e) {
+      console.error("Checkpoint failed:", e);
+    }
     process.exit(0);
   });
 }
