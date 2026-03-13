@@ -275,6 +275,23 @@ app.get("/api/route-lookup", async (c) => {
   const f = esc(fromStation);
   const t = esc(toStation);
 
+  // Resolve fuzzy station names to best match
+  const resolve = async (name: string, col: string) => {
+    const e = esc(name);
+    // Try exact match first
+    const [exact] = await query(`SELECT ${col} AS n FROM trips WHERE ${col} = '${e}' LIMIT 1`);
+    if (exact) return esc(String(exact.n));
+    // Fall back to ILIKE prefix, then contains
+    const [prefix] = await query(`SELECT ${col} AS n FROM trips WHERE ${col} ILIKE '${e}%' LIMIT 1`);
+    if (prefix) return esc(String(prefix.n));
+    const [contains] = await query(`SELECT ${col} AS n FROM trips WHERE ${col} ILIKE '%${e}%' LIMIT 1`);
+    if (contains) return esc(String(contains.n));
+    return e;
+  };
+
+  const resolvedFrom = await resolve(f, "start_station_name");
+  const resolvedTo = await resolve(t, "end_station_name");
+
   const [r] = await query(`
     SELECT
       count(*) AS total_trips,
@@ -287,19 +304,19 @@ app.get("/api/route-lookup", async (c) => {
       round(avg(end_lat), 5)   AS to_lat,
       round(avg(end_lng), 5)   AS to_lng
     FROM trips
-    WHERE start_station_name = '${f}' AND end_station_name = '${t}'
+    WHERE start_station_name = '${resolvedFrom}' AND end_station_name = '${resolvedTo}'
   `);
 
   const [rev] = await query(`
     SELECT count(*) AS cnt
     FROM trips
-    WHERE start_station_name = '${t}' AND end_station_name = '${f}'
+    WHERE start_station_name = '${resolvedTo}' AND end_station_name = '${resolvedFrom}'
   `);
 
   const [peak] = await query(`
     SELECT extract('hour' FROM started_at) AS hr, count(*) AS cnt
     FROM trips
-    WHERE start_station_name = '${f}' AND end_station_name = '${t}'
+    WHERE start_station_name = '${resolvedFrom}' AND end_station_name = '${resolvedTo}'
     GROUP BY hr
     ORDER BY cnt DESC
     LIMIT 1
@@ -309,8 +326,8 @@ app.get("/api/route-lookup", async (c) => {
   const memberTrips = Number(r.member_trips);
 
   return c.json({
-    from: fromStation,
-    to: toStation,
+    from: resolvedFrom.replace(/''/g, "'"),
+    to: resolvedTo.replace(/''/g, "'"),
     total_trips: totalTrips,
     reverse_trips: Number(rev.cnt),
     avg_duration_min: r.avg_duration_min != null ? Number(r.avg_duration_min) : null,
