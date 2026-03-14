@@ -38,7 +38,7 @@ export default function StatsBar({ stats, loading, activeLayer, liveMeta }) {
     <div className="absolute top-0 left-0 right-0 z-10 bg-white/92 backdrop-blur-md border-b border-black/8 px-3 py-2 md:px-6 md:py-3 flex items-center gap-4 md:gap-8">
       <div className="whitespace-nowrap shrink-0">
         <div className="text-sm md:text-lg font-bold text-gray-900 tracking-tight">Bay Wheels</div>
-        <div className="text-[10px] text-gray-400 hidden md:block">fun insights from data published by <a href="https://www.lyft.com/bikes/bay-wheels/system-data" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">Lyft</a></div>
+        <div className="text-[10px] text-gray-400 hidden md:block">made by <a href="https://abbykrishnan.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">Abby Krishnan</a> · data from <a href="https://www.lyft.com/bikes/bay-wheels/system-data" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">Lyft</a></div>
       </div>
       <div className="flex gap-3 md:gap-6 flex-1 overflow-x-auto">
         {(activeLayer === "live" ? LIVE_STATS_CONFIG : STATS_CONFIG).map(({ key, label, format, hideOnMobile }) => (
