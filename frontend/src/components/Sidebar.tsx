@@ -388,7 +388,7 @@ function TopRoutesSection({ flows }) {
 
 // ─── Main sidebar ────────────────────────────────────────────────────────────
 
-export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation, onClickStation, liveStations = [] }) {
+export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation, onClickStation, liveStations = [], sidebarOpen = false }) {
   // Look up full live station object by station_id and fire onClickStation
   function handleStationClick(stationId) {
     if (!onClickStation) return;
@@ -397,7 +397,7 @@ export default function Sidebar({ flows, stations, activeLayer, liveCoverage = {
   }
 
   return (
-    <div className="absolute top-[68px] right-0 bottom-0 w-[360px] bg-white/95 backdrop-blur-md border-l border-black/8 shadow-md flex flex-col z-5">
+    <div className={`absolute top-[52px] md:top-[68px] right-0 bottom-0 w-[85vw] max-w-[360px] bg-white/95 backdrop-blur-md border-l border-black/8 shadow-md flex flex-col z-15 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "translate-x-full"} md:translate-x-0`}>
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5">
         {activeLayer === "live" && (
           <>

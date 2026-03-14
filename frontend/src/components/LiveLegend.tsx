@@ -8,7 +8,7 @@ const STATION_COLORS = [
 
 export default function LiveLegend() {
   return (
-    <div className="absolute bottom-6 right-[380px] bg-white/92 backdrop-blur-md rounded-xl border border-black/8 shadow-md p-3 flex flex-col gap-2 text-xs">
+    <div className="hidden md:flex absolute bottom-6 md:right-[380px] bg-white/92 backdrop-blur-md rounded-xl border border-black/8 shadow-md p-3 flex-col gap-2 text-xs">
       <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Station Fill Level</div>
       <div className="flex flex-col gap-1">
         {STATION_COLORS.map(({ color, label }) => (

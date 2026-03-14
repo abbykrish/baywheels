@@ -142,7 +142,7 @@ export default function StationModal({ station, onClose }: Props) {
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
       <div
-        className="relative bg-white rounded-2xl shadow-2xl w-[420px] max-h-[85vh] overflow-y-auto"
+        className="relative bg-white rounded-2xl shadow-2xl w-[calc(100vw-2rem)] max-w-[420px] max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

@@ -38,6 +38,7 @@ export default function App() {
   const [liveTrends, setLiveTrends] = useState([]);
   const [highlightedStationId, setHighlightedStationId] = useState(null);
   const [selectedStation, setSelectedStation] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Sync active layer to URL query param
   useEffect(() => {
@@ -120,7 +121,7 @@ export default function App() {
       <MapView flows={flows} stations={stations} activeLayer={activeLayer} liveStations={liveStations} liveBikes={liveBikes} liveTrends={liveTrends} highlightedStationId={highlightedStationId} onClickStation={setSelectedStation} />
 
       {/* Controls panel */}
-      <div className="absolute bottom-6 left-6 bg-white/92 backdrop-blur-md rounded-xl border border-black/8 shadow-md p-4 w-[320px] flex flex-col gap-3">
+      <div className="absolute bottom-3 left-3 right-3 md:right-auto md:bottom-6 md:left-6 bg-white/92 backdrop-blur-md rounded-xl border border-black/8 shadow-md p-3 md:p-4 md:w-[320px] flex flex-col gap-3 z-10">
         {activeLayer !== "live" && (
           <MonthFilter
             months={months}
@@ -165,10 +166,18 @@ export default function App() {
           </div>
         )}
 
-        {activeLayer !== "live" && <HourlyChart data={hourly} />}
+        {activeLayer !== "live" && <div className="hidden md:block"><HourlyChart data={hourly} /></div>}
       </div>
 
-      <Sidebar flows={flows} stations={stations} activeLayer={activeLayer} liveCoverage={liveCoverage} liveTrends={liveTrends} liveStations={liveStations} onHoverStation={setHighlightedStationId} onClickStation={setSelectedStation} />
+      {/* Sidebar toggle button (mobile) */}
+      <button
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className="md:hidden absolute top-20 right-3 z-20 bg-white/92 backdrop-blur-md border border-black/8 shadow-md rounded-lg px-3 py-2 text-xs font-semibold text-purple-600 cursor-pointer"
+      >
+        {sidebarOpen ? "Close" : "Details"}
+      </button>
+
+      <Sidebar flows={flows} stations={stations} activeLayer={activeLayer} liveCoverage={liveCoverage} liveTrends={liveTrends} liveStations={liveStations} onHoverStation={setHighlightedStationId} onClickStation={setSelectedStation} sidebarOpen={sidebarOpen} />
       {activeLayer === "live" ? <LiveLegend /> : <Legend activeLayer={activeLayer} />}
       <StationModal station={selectedStation} onClose={() => setSelectedStation(null)} />
 
