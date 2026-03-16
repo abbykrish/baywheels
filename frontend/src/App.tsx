@@ -137,7 +137,7 @@ export default function App() {
               <button
                 key={l}
                 onClick={() => setActiveLayer(l)}
-                className={`flex-1 py-1.5 text-xs rounded-md border cursor-pointer transition-all
+                className={`flex-1 px-2 py-1.5 text-xs rounded-md border cursor-pointer transition-all
                   ${activeLayer === l
                     ? "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold"
                     : "border-black/10 bg-transparent text-gray-500"

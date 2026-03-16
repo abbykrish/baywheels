@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { getStationHistory } from "../api";
 
 interface HistoryPoint {
@@ -55,12 +56,10 @@ function MiniChart({ history, capacity, showDate = false }: { history: HistoryPo
   const ebikeLine = history.map((d, i) => `${x(i)},${y(d.ebikes)}`).join(" ");
   const bikeLine = history.map((d, i) => `${x(i)},${y(d.bikes)}`).join(" ");
 
-  // Y-axis ticks
   const yTicks: number[] = [];
   const step = maxY <= 10 ? 2 : maxY <= 30 ? 5 : 10;
   for (let v = 0; v <= maxY; v += step) yTicks.push(v);
 
-  // X-axis time labels (4-5 evenly spaced)
   const labelCount = 4;
   const xLabels: { i: number; label: string }[] = [];
   for (let n = 0; n < labelCount; n++) {
@@ -92,11 +91,9 @@ function MiniChart({ history, capacity, showDate = false }: { history: HistoryPo
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverIdx(null)}
       >
-        {/* Capacity line */}
         <line x1={PAD.left} x2={W - PAD.right} y1={y(capacity)} y2={y(capacity)} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4,3" />
         <text x={W - PAD.right + 2} y={y(capacity) + 3} fill="#d1d5db" fontSize="8">{capacity}</text>
 
-        {/* Grid lines */}
         {yTicks.map((v) => (
           <g key={v}>
             <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} stroke="#f3f4f6" strokeWidth="0.5" />
@@ -104,12 +101,9 @@ function MiniChart({ history, capacity, showDate = false }: { history: HistoryPo
           </g>
         ))}
 
-        {/* Total bikes line */}
         <polyline points={bikeLine} fill="none" stroke="rgb(59, 130, 246)" strokeWidth="1.5" strokeLinejoin="round" />
-        {/* Ebikes line */}
         <polyline points={ebikeLine} fill="none" stroke="rgb(124, 58, 237)" strokeWidth="1.5" strokeLinejoin="round" />
 
-        {/* Hover crosshair + dots */}
         {hoverIdx != null && hoverPoint && (
           <g>
             <line x1={x(hoverIdx)} x2={x(hoverIdx)} y1={PAD.top} y2={H - PAD.bottom} stroke="#9ca3af" strokeWidth="0.5" strokeDasharray="3,2" />
@@ -118,13 +112,11 @@ function MiniChart({ history, capacity, showDate = false }: { history: HistoryPo
           </g>
         )}
 
-        {/* X-axis labels */}
         {xLabels.map(({ i, label }) => (
           <text key={i} x={x(i)} y={H - 4} fill="#9ca3af" fontSize="8" textAnchor="middle">{label}</text>
         ))}
       </svg>
 
-      {/* Hover tooltip */}
       {hoverPoint ? (
         <div className="flex gap-3 text-[10px] justify-center text-gray-500">
           <span>{formatTime(hoverPoint.ts, showDate)}</span>
@@ -190,13 +182,9 @@ export default function StationModal({ station, onClose }: Props) {
     ? Math.round((history.reduce((sum, d) => sum + d.bikes, 0) / history.length / station.capacity) * 100)
     : null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-      <div
-        className="relative bg-white rounded-2xl shadow-2xl w-[calc(100vw-2rem)] max-w-[420px] max-h-[85vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
+  return createPortal(
+    <div className="station-modal-overlay" onPointerDown={onClose}>
+      <div className="station-modal-card" onPointerDown={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="p-5 pb-3">
           <div className="flex items-start justify-between gap-3">
@@ -222,10 +210,9 @@ export default function StationModal({ station, onClose }: Props) {
             <StatPill label="Ebikes" value={station.num_ebikes_available} color="text-purple-600" />
             <StatPill label="Classic" value={classics} color="text-blue-500" />
             <StatPill label="Docks" value={station.num_docks_available} color="text-gray-500" />
-            <StatPill label={`Avg Fill (${HOUR_OPTIONS.find(o => o.value === hours)?.label})`} value={avgFill != null ? `${avgFill}%` : "—"} color={avgFill == null ? "text-gray-400" : avgFill >= 50 ? "text-green-600" : avgFill >= 10 ? "text-amber-600" : "text-red-500"} />
+            <StatPill label={`Avg Fill (${HOUR_OPTIONS.find(o => o.value === hours)?.label})`} value={avgFill != null ? `${avgFill}%` : "\u2014"} color={avgFill == null ? "text-gray-400" : avgFill >= 50 ? "text-green-600" : avgFill >= 10 ? "text-amber-600" : "text-red-500"} />
           </div>
 
-          {/* Fill bar */}
           <div className="mt-3 h-2 rounded-full bg-gray-200 overflow-hidden flex">
             <div className="h-full bg-purple-500" style={{ width: `${station.capacity ? (station.num_ebikes_available / station.capacity) * 100 : 0}%` }} />
             <div className="h-full bg-blue-400" style={{ width: `${station.capacity ? (classics / station.capacity) * 100 : 0}%` }} />
@@ -268,6 +255,7 @@ export default function StationModal({ station, onClose }: Props) {
           Station ID: {station.station_id}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

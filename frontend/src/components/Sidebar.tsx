@@ -397,7 +397,7 @@ export default function Sidebar({ flows, stations, activeLayer, liveCoverage = {
   }
 
   return (
-    <div className={`absolute top-[52px] md:top-[68px] right-0 bottom-0 w-[85vw] max-w-[360px] bg-white/95 backdrop-blur-md border-l border-black/8 shadow-md flex flex-col z-15 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "translate-x-full"} md:translate-x-0`}>
+    <div className={`absolute top-[52px] md:top-[68px] right-0 bottom-0 w-[85vw] max-w-[360px] bg-white/95 backdrop-blur-md border-l border-black/8 shadow-md flex flex-col z-15 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "translate-x-full pointer-events-none"} md:translate-x-0 md:pointer-events-auto`}>
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5">
         {activeLayer === "live" && (
           <>
