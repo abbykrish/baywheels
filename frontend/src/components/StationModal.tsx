@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getStationHistory } from "../api";
 
 interface HistoryPoint {
@@ -24,16 +24,20 @@ interface Props {
   onClose: () => void;
 }
 
-function formatTime(ts: string) {
+function formatTime(ts: string, showDate = false) {
   try {
     const d = new Date(ts.replace(" ", "T") + "Z");
+    if (showDate) return d.toLocaleDateString([], { month: "short", day: "numeric" });
     return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   } catch {
     return ts;
   }
 }
 
-function MiniChart({ history, capacity }: { history: HistoryPoint[]; capacity: number }) {
+function MiniChart({ history, capacity, showDate = false }: { history: HistoryPoint[]; capacity: number; showDate?: boolean }) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
   if (!history.length) {
     return <div className="text-xs text-gray-400 text-center py-4">No snapshot history yet.</div>;
   }
@@ -61,12 +65,33 @@ function MiniChart({ history, capacity }: { history: HistoryPoint[]; capacity: n
   const xLabels: { i: number; label: string }[] = [];
   for (let n = 0; n < labelCount; n++) {
     const i = Math.round((n / (labelCount - 1)) * (history.length - 1));
-    xLabels.push({ i, label: formatTime(history[i].ts) });
+    xLabels.push({ i, label: formatTime(history[i].ts, showDate) });
   }
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const svgX = ((e.clientX - rect.left) / rect.width) * W;
+    const ratio = (svgX - PAD.left) / cw;
+    const idx = Math.round(ratio * (history.length - 1));
+    if (idx >= 0 && idx < history.length) setHoverIdx(idx);
+    else setHoverIdx(null);
+  };
+
+  const hoverPoint = hoverIdx != null ? history[hoverIdx] : null;
 
   return (
     <div className="flex flex-col gap-1">
-      <svg width={W} height={H} className="w-full" viewBox={`0 0 ${W} ${H}`}>
+      <svg
+        ref={svgRef}
+        width={W}
+        height={H}
+        className="w-full cursor-crosshair"
+        viewBox={`0 0 ${W} ${H}`}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHoverIdx(null)}
+      >
         {/* Capacity line */}
         <line x1={PAD.left} x2={W - PAD.right} y1={y(capacity)} y2={y(capacity)} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4,3" />
         <text x={W - PAD.right + 2} y={y(capacity) + 3} fill="#d1d5db" fontSize="8">{capacity}</text>
@@ -84,22 +109,42 @@ function MiniChart({ history, capacity }: { history: HistoryPoint[]; capacity: n
         {/* Ebikes line */}
         <polyline points={ebikeLine} fill="none" stroke="rgb(124, 58, 237)" strokeWidth="1.5" strokeLinejoin="round" />
 
+        {/* Hover crosshair + dots */}
+        {hoverIdx != null && hoverPoint && (
+          <g>
+            <line x1={x(hoverIdx)} x2={x(hoverIdx)} y1={PAD.top} y2={H - PAD.bottom} stroke="#9ca3af" strokeWidth="0.5" strokeDasharray="3,2" />
+            <circle cx={x(hoverIdx)} cy={y(hoverPoint.ebikes)} r="3" fill="rgb(124, 58, 237)" />
+            <circle cx={x(hoverIdx)} cy={y(hoverPoint.bikes)} r="3" fill="rgb(59, 130, 246)" />
+          </g>
+        )}
+
         {/* X-axis labels */}
         {xLabels.map(({ i, label }) => (
           <text key={i} x={x(i)} y={H - 4} fill="#9ca3af" fontSize="8" textAnchor="middle">{label}</text>
         ))}
       </svg>
-      <div className="flex gap-4 text-[10px] justify-center">
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-0.5 bg-purple-600 rounded" /> Ebikes
-        </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-0.5 bg-blue-500 rounded" /> Total bikes
-        </span>
-        <span className="flex items-center gap-1 text-gray-400">
-          <span className="inline-block w-3 h-0 border-t border-dashed border-gray-300" /> Capacity
-        </span>
-      </div>
+
+      {/* Hover tooltip */}
+      {hoverPoint ? (
+        <div className="flex gap-3 text-[10px] justify-center text-gray-500">
+          <span>{formatTime(hoverPoint.ts, showDate)}</span>
+          <span className="text-purple-600">{hoverPoint.ebikes} ebikes</span>
+          <span className="text-blue-500">{hoverPoint.bikes} total</span>
+          <span className="text-gray-400">{hoverPoint.docks} docks</span>
+        </div>
+      ) : (
+        <div className="flex gap-4 text-[10px] justify-center">
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-3 h-0.5 bg-purple-600 rounded" /> Ebikes
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-3 h-0.5 bg-blue-500 rounded" /> Total bikes
+          </span>
+          <span className="flex items-center gap-1 text-gray-400">
+            <span className="inline-block w-3 h-0 border-t border-dashed border-gray-300" /> Capacity
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -108,12 +153,17 @@ function StatPill({ label, value, color }: { label: string; value: string | numb
   return (
     <div className="flex flex-col items-center px-3 py-1.5 rounded-lg bg-gray-50 flex-1">
       <span className={`text-lg font-bold ${color}`}>{value}</span>
-      <span className="text-[10px] text-gray-400 uppercase tracking-wide">{label}</span>
+      <span className="text-[10px] text-gray-400 uppercase tracking-wide text-center">{label}</span>
     </div>
   );
 }
 
-const HOUR_OPTIONS = [6, 12, 24];
+const HOUR_OPTIONS: { value: number; label: string }[] = [
+  { value: 6, label: "6h" },
+  { value: 12, label: "12h" },
+  { value: 24, label: "24h" },
+  { value: 168, label: "1w" },
+];
 
 export default function StationModal({ station, onClose }: Props) {
   const [history, setHistory] = useState<HistoryPoint[]>([]);
@@ -136,7 +186,9 @@ export default function StationModal({ station, onClose }: Props) {
   if (!station) return null;
 
   const classics = Math.max(0, station.num_bikes_available - station.num_ebikes_available);
-  const fillPct = station.capacity ? Math.round((station.num_bikes_available / station.capacity) * 100) : 0;
+  const avgFill = history.length && station.capacity
+    ? Math.round((history.reduce((sum, d) => sum + d.bikes, 0) / history.length / station.capacity) * 100)
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
@@ -151,9 +203,8 @@ export default function StationModal({ station, onClose }: Props) {
             <div>
               <h2 className="text-base font-bold text-gray-900 leading-tight">{station.name}</h2>
               <p className="text-[11px] text-gray-400 mt-0.5">
-                {station.capacity} dock capacity
-                {!station.is_renting && <span className="ml-2 text-red-500 font-medium">Not renting</span>}
-                {!station.is_returning && <span className="ml-2 text-red-500 font-medium">Not returning</span>}
+                {!station.is_renting && <span className="text-red-500 font-medium">Not renting</span>}
+                {!station.is_returning && <span className={`text-red-500 font-medium ${!station.is_renting ? "ml-2" : ""}`}>Not returning</span>}
               </p>
             </div>
             <button
@@ -171,7 +222,7 @@ export default function StationModal({ station, onClose }: Props) {
             <StatPill label="Ebikes" value={station.num_ebikes_available} color="text-purple-600" />
             <StatPill label="Classic" value={classics} color="text-blue-500" />
             <StatPill label="Docks" value={station.num_docks_available} color="text-gray-500" />
-            <StatPill label="Fill" value={`${fillPct}%`} color={fillPct >= 50 ? "text-green-600" : fillPct >= 10 ? "text-amber-600" : "text-red-500"} />
+            <StatPill label={`Avg Fill (${HOUR_OPTIONS.find(o => o.value === hours)?.label})`} value={avgFill != null ? `${avgFill}%` : "—"} color={avgFill == null ? "text-gray-400" : avgFill >= 50 ? "text-green-600" : avgFill >= 10 ? "text-amber-600" : "text-red-500"} />
           </div>
 
           {/* Fill bar */}
@@ -186,17 +237,17 @@ export default function StationModal({ station, onClose }: Props) {
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Availability Over Time</span>
             <div className="flex gap-1">
-              {HOUR_OPTIONS.map((h) => (
+              {HOUR_OPTIONS.map(({ value, label }) => (
                 <button
-                  key={h}
-                  onClick={(e) => { e.stopPropagation(); setHours(h); }}
+                  key={value}
+                  onClick={(e) => { e.stopPropagation(); setHours(value); }}
                   className={`text-[10px] px-2 py-0.5 rounded border cursor-pointer transition-all ${
-                    hours === h
+                    hours === value
                       ? "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold"
                       : "border-gray-200 bg-transparent text-gray-400"
                   }`}
                 >
-                  {h}h
+                  {label}
                 </button>
               ))}
             </div>
@@ -208,7 +259,7 @@ export default function StationModal({ station, onClose }: Props) {
               Not enough data yet for {hours}h view. Snapshots are collected every 5 min.
             </div>
           ) : (
-            <MiniChart history={history} capacity={station.capacity} />
+            <MiniChart history={history} capacity={station.capacity} showDate={hours >= 168} />
           )}
         </div>
 

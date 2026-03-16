@@ -161,14 +161,14 @@ app.get("/api/stations", async (c) => {
   const rows = await query(`
     SELECT
       station_name,
-      station_id,
+      max(station_id) AS station_id,
       round(avg(lat), 5) AS lat,
       round(avg(lng), 5) AS lng,
       sum(departures) AS departures,
       sum(arrivals) AS arrivals
     FROM monthly_stations
     WHERE ${mf}
-    GROUP BY station_name, station_id
+    GROUP BY station_name
     ORDER BY departures DESC
   `);
 

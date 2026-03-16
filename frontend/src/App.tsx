@@ -23,7 +23,7 @@ export default function App() {
     const tab = params.get("tab");
     return LAYERS.includes(tab) ? tab : "live";
   });
-  const [arcCount, setArcCount] = useState(150);
+  const [arcCount, setArcCount] = useState(200);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -121,7 +121,7 @@ export default function App() {
       <MapView flows={flows} stations={stations} activeLayer={activeLayer} liveStations={liveStations} liveBikes={liveBikes} liveTrends={liveTrends} highlightedStationId={highlightedStationId} onClickStation={setSelectedStation} />
 
       {/* Controls panel */}
-      <div className="absolute bottom-3 left-3 right-3 md:right-auto md:bottom-6 md:left-6 bg-white/92 backdrop-blur-md rounded-xl border border-black/8 shadow-md p-3 md:p-4 md:w-[320px] flex flex-col gap-3 z-10">
+      <div className="absolute bottom-3 left-3 md:bottom-6 md:left-6 bg-white/92 backdrop-blur-md rounded-xl border border-black/8 shadow-md p-3 md:p-4 w-auto md:w-[320px] flex flex-col gap-3 z-10">
         {activeLayer !== "live" && (
           <MonthFilter
             months={months}
@@ -151,18 +151,22 @@ export default function App() {
 
         {activeLayer === "arcs" && (
           <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] uppercase tracking-wide text-gray-400">
-              Top routes: {arcCount}
-            </label>
-            <input
-              type="range"
-              min={20}
-              max={500}
-              step={10}
-              value={arcCount}
-              onChange={(e) => setArcCount(Number(e.target.value))}
-              className="w-full accent-purple-600"
-            />
+            <label className="text-[11px] uppercase tracking-wide text-gray-400">Top Routes</label>
+            <div className="flex gap-1">
+              {[50, 100, 200, 500].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setArcCount(n)}
+                  className={`flex-1 py-1.5 text-xs rounded-md border cursor-pointer transition-all ${
+                    arcCount === n
+                      ? "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold"
+                      : "border-black/10 bg-transparent text-gray-500"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

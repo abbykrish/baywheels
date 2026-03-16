@@ -248,8 +248,8 @@ function RecentChangesSection({ data, onHoverStation, onClickStation = null }) {
                   <span className="text-[10px] text-purple-600 font-medium">{t.ebikes_now} ebike{t.ebikes_now !== 1 ? "s" : ""}</span>
                   <span className="text-[10px] text-blue-500 font-medium">{classics} classic</span>
                   <span className="text-[10px] text-gray-300">|</span>
-                  <DeltaBadge delta={t.bike_delta} label="bike" />
                   <DeltaBadge delta={t.ebike_delta} label="ebike" />
+                  <DeltaBadge delta={t.bike_delta - t.ebike_delta} label="classic" />
                 </div>
               </div>
             </div>
