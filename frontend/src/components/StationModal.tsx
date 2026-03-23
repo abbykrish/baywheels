@@ -35,16 +35,26 @@ function formatTime(ts: string, showDate = false) {
   }
 }
 
+type ChartFilter = "all" | "ebikes" | "classics";
+
 function MiniChart({ history, capacity, showDate = false }: { history: HistoryPoint[]; capacity: number; showDate?: boolean }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [filter, setFilter] = useState<ChartFilter>("all");
   const svgRef = useRef<SVGSVGElement>(null);
 
   if (!history.length) {
     return <div className="text-xs text-gray-400 text-center py-4">No snapshot history yet.</div>;
   }
 
-  const maxY = Math.max(capacity, ...history.map((d) => d.bikes), 1);
-  const W = 360;
+  const classics = history.map((d) => d.bikes - d.ebikes);
+  const maxY = Math.max(
+    capacity,
+    ...history.map((d, i) =>
+      filter === "ebikes" ? d.ebikes : filter === "classics" ? classics[i] : d.bikes
+    ),
+    1,
+  );
+  const W = 400;
   const H = 130;
   const PAD = { top: 8, right: 12, bottom: 20, left: 28 };
   const cw = W - PAD.left - PAD.right;
@@ -55,6 +65,7 @@ function MiniChart({ history, capacity, showDate = false }: { history: HistoryPo
 
   const ebikeLine = history.map((d, i) => `${x(i)},${y(d.ebikes)}`).join(" ");
   const bikeLine = history.map((d, i) => `${x(i)},${y(d.bikes)}`).join(" ");
+  const classicLine = history.map((d, i) => `${x(i)},${y(classics[i])}`).join(" ");
 
   const yTicks: number[] = [];
   const step = maxY <= 10 ? 2 : maxY <= 30 ? 5 : 10;
@@ -79,9 +90,27 @@ function MiniChart({ history, capacity, showDate = false }: { history: HistoryPo
   };
 
   const hoverPoint = hoverIdx != null ? history[hoverIdx] : null;
+  const hoverClassics = hoverIdx != null ? classics[hoverIdx] : 0;
+
+  const FILTERS: { value: ChartFilter; label: string; color: string; activeColor: string }[] = [
+    { value: "all", label: "All", color: "border-gray-200 text-gray-400", activeColor: "bg-gray-100 border-gray-300 text-gray-700 font-semibold" },
+    { value: "ebikes", label: "Ebikes", color: "border-gray-200 text-gray-400", activeColor: "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold" },
+    { value: "classics", label: "Classics", color: "border-gray-200 text-gray-400", activeColor: "bg-teal-600/10 border-teal-600/40 text-teal-600 font-semibold" },
+  ];
 
   return (
     <div className="flex flex-col gap-1">
+      <div className="flex gap-1 justify-end mb-1">
+        {FILTERS.map(({ value, label, color, activeColor }) => (
+          <button
+            key={value}
+            onClick={() => setFilter(value)}
+            className={`text-[10px] px-2 py-0.5 rounded border cursor-pointer transition-all ${filter === value ? activeColor : color}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <svg
         ref={svgRef}
         width={W}
@@ -101,14 +130,28 @@ function MiniChart({ history, capacity, showDate = false }: { history: HistoryPo
           </g>
         ))}
 
-        <polyline points={bikeLine} fill="none" stroke="rgb(59, 130, 246)" strokeWidth="1.5" strokeLinejoin="round" />
-        <polyline points={ebikeLine} fill="none" stroke="rgb(124, 58, 237)" strokeWidth="1.5" strokeLinejoin="round" />
+        {filter === "all" && (
+          <polyline points={bikeLine} fill="none" stroke="rgb(59, 130, 246)" strokeWidth="1.5" strokeLinejoin="round" />
+        )}
+        {filter === "classics" && (
+          <polyline points={classicLine} fill="none" stroke="rgb(14, 165, 133)" strokeWidth="1.5" strokeLinejoin="round" />
+        )}
+        {(filter === "all" || filter === "ebikes") && (
+          <polyline points={ebikeLine} fill="none" stroke="rgb(124, 58, 237)" strokeWidth="1.5" strokeLinejoin="round" />
+        )}
 
         {hoverIdx != null && hoverPoint && (
           <g>
             <line x1={x(hoverIdx)} x2={x(hoverIdx)} y1={PAD.top} y2={H - PAD.bottom} stroke="#9ca3af" strokeWidth="0.5" strokeDasharray="3,2" />
-            <circle cx={x(hoverIdx)} cy={y(hoverPoint.ebikes)} r="3" fill="rgb(124, 58, 237)" />
-            <circle cx={x(hoverIdx)} cy={y(hoverPoint.bikes)} r="3" fill="rgb(59, 130, 246)" />
+            {(filter === "all" || filter === "ebikes") && (
+              <circle cx={x(hoverIdx)} cy={y(hoverPoint.ebikes)} r="3" fill="rgb(124, 58, 237)" />
+            )}
+            {filter === "all" && (
+              <circle cx={x(hoverIdx)} cy={y(hoverPoint.bikes)} r="3" fill="rgb(59, 130, 246)" />
+            )}
+            {filter === "classics" && (
+              <circle cx={x(hoverIdx)} cy={y(hoverClassics)} r="3" fill="rgb(14, 165, 133)" />
+            )}
           </g>
         )}
 
@@ -120,18 +163,28 @@ function MiniChart({ history, capacity, showDate = false }: { history: HistoryPo
       {hoverPoint ? (
         <div className="flex gap-3 text-[10px] justify-center text-gray-500">
           <span>{formatTime(hoverPoint.ts, showDate)}</span>
-          <span className="text-purple-600">{hoverPoint.ebikes} ebikes</span>
-          <span className="text-blue-500">{hoverPoint.bikes} total</span>
+          {(filter === "all" || filter === "ebikes") && <span className="text-purple-600">{hoverPoint.ebikes} ebikes</span>}
+          {filter === "all" && <span className="text-blue-500">{hoverPoint.bikes} total</span>}
+          {(filter === "all" || filter === "classics") && <span className="text-teal-600">{hoverClassics} classics</span>}
           <span className="text-gray-400">{hoverPoint.docks} docks</span>
         </div>
       ) : (
         <div className="flex gap-4 text-[10px] justify-center">
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-3 h-0.5 bg-purple-600 rounded" /> Ebikes
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-3 h-0.5 bg-blue-500 rounded" /> Total bikes
-          </span>
+          {(filter === "all" || filter === "ebikes") && (
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-3 h-0.5 bg-purple-600 rounded" /> Ebikes
+            </span>
+          )}
+          {filter === "all" && (
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-3 h-0.5 bg-blue-500 rounded" /> Total bikes
+            </span>
+          )}
+          {filter === "classics" && (
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-3 h-0.5 bg-teal-600 rounded" /> Classics
+            </span>
+          )}
           <span className="flex items-center gap-1 text-gray-400">
             <span className="inline-block w-3 h-0 border-t border-dashed border-gray-300" /> Capacity
           </span>
@@ -141,9 +194,9 @@ function MiniChart({ history, capacity, showDate = false }: { history: HistoryPo
   );
 }
 
-function StatPill({ label, value, color }: { label: string; value: string | number; color: string }) {
+function StatPill({ label, value, color, title }: { label: string; value: string | number; color: string; title?: string }) {
   return (
-    <div className="flex flex-col items-center px-3 py-1.5 rounded-lg bg-gray-50 flex-1">
+    <div className="flex flex-col items-center px-3 py-1.5 rounded-lg bg-gray-50 flex-1" title={title}>
       <span className={`text-lg font-bold ${color}`}>{value}</span>
       <span className="text-[10px] text-gray-400 uppercase tracking-wide text-center">{label}</span>
     </div>
@@ -225,7 +278,7 @@ export default function StationModal({ station, onClose }: Props) {
             <StatPill label="Classic" value={classics} color="text-blue-500" />
             <StatPill label="Docks" value={station.num_docks_available} color="text-gray-500" />
             <StatPill label={`Avg Fill (${HOUR_OPTIONS.find(o => o.value === hours)?.label})`} value={avgFill != null ? `${avgFill}%` : "\u2014"} color={avgFill == null ? "text-gray-400" : avgFill >= 50 ? "text-green-600" : avgFill >= 10 ? "text-amber-600" : "text-red-500"} />
-            <StatPill label="Ebikes Gone By" value={lastEbike?.avg_time ? lastEbike.avg_time.replace(" ", "") : "\u2014"} color="text-orange-600" />
+            <StatPill label="Ebikes Gone By" value={lastEbike?.avg_time ? lastEbike.avg_time.replace(" ", "") : "\u2014"} color="text-orange-600" title={`Avg time all ebikes are checked out (${lastEbike?.occurrences ?? 0} times in the last week)`} />
           </div>
 
           <div className="mt-3 h-2 rounded-full bg-gray-200 overflow-hidden flex">
