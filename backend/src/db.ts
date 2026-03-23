@@ -55,11 +55,12 @@ export async function refreshSummaries(): Promise<void> {
     SELECT
       date_trunc('month', started_at)::DATE AS month,
       extract('hour' FROM started_at)::INT AS hour,
+      CASE WHEN extract('isodow' FROM started_at) >= 6 THEN 1 ELSE 0 END AS is_weekend,
       count(*) AS trips,
       sum(CASE WHEN member_casual IN ('member', 'Subscriber') THEN 1 ELSE 0 END) AS member_trips,
       sum(CASE WHEN member_casual IN ('casual', 'Customer') THEN 1 ELSE 0 END) AS casual_trips
     FROM trips
-    GROUP BY month, hour
+    GROUP BY month, hour, 3
   `);
 
   await conn.run(`

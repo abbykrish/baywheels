@@ -44,12 +44,13 @@ function densityColor(t) {
 function ebikeFillColor(station) {
   if (!station.capacity || station.capacity === 0) return [150, 150, 150, 180];
   const ratio = station.num_ebikes_available / station.capacity;
-  if (ratio >= 0.5) return [34, 197, 94, 200];   // green
+  if (ratio >= 0.5) return [34, 197, 94, 200];    // green
+  if (ratio >= 0.25) return [249, 115, 22, 200];   // orange
   if (ratio >= 0.1) return [234, 179, 8, 200];    // yellow
   return [220, 38, 38, 200];                       // red
 }
 
-export default function MapView({ flows, stations, activeLayer, liveStations = [], liveBikes = [], liveTrends = [], highlightedStationId = null, onClickStation = null }) {
+export default function MapView({ flows, stations, activeLayer, liveStations = [], liveBikes = [], liveTrends = [], highlightedStationId = null, highlightedRoute = null, onClickStation = null }) {
   const maxCount = useMemo(() => {
     if (!flows.length) return 1;
     return Math.max(...flows.map((f) => f.count));
@@ -59,17 +60,25 @@ export default function MapView({ flows, stations, activeLayer, liveStations = [
     const result = [];
 
     if (activeLayer === "arcs") {
+      const isHighlighted = (d) =>
+        highlightedRoute && d.from_name === highlightedRoute.from_name && d.to_name === highlightedRoute.to_name;
+      const HIGHLIGHT_COLOR = [59, 130, 246, 255]; // blue-500
       result.push(
         new ArcLayer({
           id: "trip-arcs",
           data: flows,
           getSourcePosition: (d) => d.from,
           getTargetPosition: (d) => d.to,
-          getSourceColor: (d) => densityColor(Math.sqrt(d.count / maxCount)),
-          getTargetColor: (d) => densityColor(Math.sqrt(d.count / maxCount)),
-          getWidth: (d) => 1.5 + (d.count / maxCount) * 4,
+          getSourceColor: (d) => isHighlighted(d) ? HIGHLIGHT_COLOR : densityColor(Math.sqrt(d.count / maxCount)),
+          getTargetColor: (d) => isHighlighted(d) ? HIGHLIGHT_COLOR : densityColor(Math.sqrt(d.count / maxCount)),
+          getWidth: (d) => isHighlighted(d) ? 5 : 1.5 + (d.count / maxCount) * 4,
           greatCircle: false,
           pickable: true,
+          updateTriggers: {
+            getSourceColor: highlightedRoute,
+            getTargetColor: highlightedRoute,
+            getWidth: highlightedRoute,
+          },
         })
       );
       result.push(
@@ -204,7 +213,7 @@ export default function MapView({ flows, stations, activeLayer, liveStations = [
     }
 
     return result;
-  }, [flows, stations, activeLayer, maxCount, liveStations, liveBikes, liveTrends, highlightedStationId]);
+  }, [flows, stations, activeLayer, maxCount, liveStations, liveBikes, liveTrends, highlightedStationId, highlightedRoute]);
 
   function handleClick(info) {
     if (!info.object || !onClickStation) return;

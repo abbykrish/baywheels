@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { getStationHistory } from "../api";
+import { getStationHistory, getStationLastEbike } from "../api";
 
 interface HistoryPoint {
   ts: string;
@@ -161,6 +161,7 @@ export default function StationModal({ station, onClose }: Props) {
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [hours, setHours] = useState(24);
   const [loading, setLoading] = useState(true);
+  const [lastEbike, setLastEbike] = useState<{ avg_time: string | null; occurrences: number } | null>(null);
 
   const stationId = station?.station_id;
 
@@ -175,11 +176,24 @@ export default function StationModal({ station, onClose }: Props) {
     return () => { cancelled = true; };
   }, [stationId, hours]);
 
+  useEffect(() => {
+    if (!stationId) return;
+    let cancelled = false;
+    getStationLastEbike(stationId)
+      .then((data) => { if (!cancelled) setLastEbike(data); })
+      .catch(() => { if (!cancelled) setLastEbike(null); });
+    return () => { cancelled = true; };
+  }, [stationId]);
+
   if (!station) return null;
 
   const classics = Math.max(0, station.num_bikes_available - station.num_ebikes_available);
-  const avgFill = history.length && station.capacity
-    ? Math.round((history.reduce((sum, d) => sum + d.bikes, 0) / history.length / station.capacity) * 100)
+  const activeHistory = history.filter((d) => {
+    const hour = new Date(d.ts).getHours();
+    return hour >= 6 && hour < 24; // exclude 12am–6am sleeping hours
+  });
+  const avgFill = activeHistory.length && station.capacity
+    ? Math.round((activeHistory.reduce((sum, d) => sum + d.bikes, 0) / activeHistory.length / station.capacity) * 100)
     : null;
 
   return createPortal(
@@ -206,11 +220,12 @@ export default function StationModal({ station, onClose }: Props) {
 
         {/* Current stats */}
         <div className="px-5 pb-4">
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <StatPill label="Ebikes" value={station.num_ebikes_available} color="text-purple-600" />
             <StatPill label="Classic" value={classics} color="text-blue-500" />
             <StatPill label="Docks" value={station.num_docks_available} color="text-gray-500" />
             <StatPill label={`Avg Fill (${HOUR_OPTIONS.find(o => o.value === hours)?.label})`} value={avgFill != null ? `${avgFill}%` : "\u2014"} color={avgFill == null ? "text-gray-400" : avgFill >= 50 ? "text-green-600" : avgFill >= 10 ? "text-amber-600" : "text-red-500"} />
+            <StatPill label="Ebikes Gone By" value={lastEbike?.avg_time ? lastEbike.avg_time.replace(" ", "") : "\u2014"} color="text-orange-600" />
           </div>
 
           <div className="mt-3 h-2 rounded-full bg-gray-200 overflow-hidden flex">

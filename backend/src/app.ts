@@ -189,24 +189,44 @@ app.get("/api/hourly", async (c) => {
   const end = c.req.query("end");
   const mf = monthFilter(start, end);
 
-  const rows = await query(`
-    SELECT
-      hour,
-      sum(trips) AS trips,
-      sum(member_trips) AS member_trips,
-      sum(casual_trips) AS casual_trips
-    FROM monthly_hourly
-    WHERE ${mf}
-    GROUP BY hour
-    ORDER BY hour
-  `);
+  // Check if is_weekend column exists (table may not have been refreshed yet)
+  let hasWeekend = false;
+  try {
+    const cols = await query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'monthly_hourly' AND column_name = 'is_weekend'`);
+    hasWeekend = cols.length > 0;
+  } catch {}
+
+  const rows = hasWeekend
+    ? await query(`
+        SELECT hour, is_weekend, sum(trips) AS trips, sum(member_trips) AS member_trips, sum(casual_trips) AS casual_trips
+        FROM monthly_hourly WHERE ${mf}
+        GROUP BY hour, is_weekend ORDER BY hour, is_weekend
+      `)
+    : await query(`
+        SELECT hour, 0 AS is_weekend, sum(trips) AS trips, sum(member_trips) AS member_trips, sum(casual_trips) AS casual_trips
+        FROM monthly_hourly WHERE ${mf}
+        GROUP BY hour ORDER BY hour
+      `);
+
+  // Group by hour with weekday/weekend split
+  const byHour: Record<number, { hour: number; weekday: number; weekend: number; member: number; casual: number }> = {};
+  for (const r of rows) {
+    const h = Number(r.hour);
+    if (!byHour[h]) byHour[h] = { hour: h, weekday: 0, weekend: 0, member: 0, casual: 0 };
+    const trips = Number(r.trips);
+    if (Number(r.is_weekend)) {
+      byHour[h].weekend += trips;
+    } else {
+      byHour[h].weekday += trips;
+    }
+    byHour[h].member += Number(r.member_trips);
+    byHour[h].casual += Number(r.casual_trips);
+  }
 
   return c.json(
-    rows.map((r) => ({
-      hour: Number(r.hour),
-      trips: Number(r.trips),
-      member: Number(r.member_trips),
-      casual: Number(r.casual_trips),
+    Object.values(byHour).sort((a, b) => a.hour - b.hour).map((d) => ({
+      ...d,
+      trips: d.weekday + d.weekend,
     }))
   );
 });

@@ -8,6 +8,7 @@ import LiveLegend from "./components/LiveLegend";
 import Sidebar from "./components/Sidebar";
 import MonthFilter from "./components/MonthFilter";
 import StationModal from "./components/StationModal";
+import WelcomeModal from "./components/WelcomeModal";
 import { getStats, getFlows, getStations, getHourly, getMonths, getLiveStations, getLiveBikes, getLiveMeta, getLiveCoverage, getLiveTrends } from "./api";
 
 const LAYERS = ["live", "arcs", "heatmap", "stations"];
@@ -37,6 +38,7 @@ export default function App() {
   const [liveCoverage, setLiveCoverage] = useState({ emptiest: [], best: [] });
   const [liveTrends, setLiveTrends] = useState([]);
   const [highlightedStationId, setHighlightedStationId] = useState(null);
+  const [highlightedRoute, setHighlightedRoute] = useState(null);
   const [selectedStation, setSelectedStation] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -118,72 +120,76 @@ export default function App() {
   return (
     <div className="w-full h-full relative">
       <StatsBar stats={stats} loading={loading} activeLayer={activeLayer} liveMeta={liveMeta} />
-      <MapView flows={flows} stations={stations} activeLayer={activeLayer} liveStations={liveStations} liveBikes={liveBikes} liveTrends={liveTrends} highlightedStationId={highlightedStationId} onClickStation={setSelectedStation} />
+      <MapView flows={flows} stations={stations} activeLayer={activeLayer} liveStations={liveStations} liveBikes={liveBikes} liveTrends={liveTrends} highlightedStationId={highlightedStationId} highlightedRoute={highlightedRoute} onClickStation={setSelectedStation} />
 
-      {/* Controls panel */}
-      <div className="absolute bottom-3 left-3 md:bottom-6 md:left-6 bg-white/92 backdrop-blur-md rounded-xl border border-black/8 shadow-md p-3 md:p-4 w-auto md:w-[320px] flex flex-col gap-3 z-10">
-        {activeLayer !== "live" && (
-          <MonthFilter
-            months={months}
-            selected={selectedMonth}
-            onChange={setSelectedMonth}
-          />
-        )}
-
-        <div className="flex flex-col gap-1.5">
-          <label className="text-[11px] uppercase tracking-wide text-gray-400">Layer</label>
-          <div className="flex gap-1">
-            {LAYERS.map((l) => (
-              <button
-                key={l}
-                onClick={() => setActiveLayer(l)}
-                className={`flex-1 px-2 py-1.5 text-xs rounded-md border cursor-pointer transition-all
-                  ${activeLayer === l
-                    ? "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold"
-                    : "border-black/10 bg-transparent text-gray-500"
-                  }`}
-              >
-                {l === "live" ? "Live" : l === "arcs" ? "Historical" : l === "heatmap" ? "Heat Map" : "Stations"}
-              </button>
-            ))}
-          </div>
+      {/* Controls panel — desktop: full card, mobile: compact bottom bar */}
+      <div className="absolute bottom-0 left-0 right-0 md:bottom-6 md:left-6 md:right-auto bg-white/92 backdrop-blur-md md:rounded-xl border-t md:border border-black/8 shadow-md p-2.5 md:p-4 md:w-[320px] flex flex-col gap-2 md:gap-3 z-10">
+        {/* Layer tabs — always visible */}
+        <div className="flex gap-1">
+          {LAYERS.map((l) => (
+            <button
+              key={l}
+              onClick={() => setActiveLayer(l)}
+              className={`flex-1 px-2 py-2 md:py-1.5 text-xs rounded-md border cursor-pointer transition-all
+                ${activeLayer === l
+                  ? "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold"
+                  : "border-black/10 bg-transparent text-gray-500"
+                }`}
+            >
+              {l === "live" ? "Live" : l === "arcs" ? "Historical" : l === "heatmap" ? "Heat" : "Stations"}
+            </button>
+          ))}
         </div>
 
-        {activeLayer === "arcs" && (
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[11px] uppercase tracking-wide text-gray-400">Top Routes</label>
-            <div className="flex gap-1">
-              {[50, 100, 200, 500].map((n) => (
-                <button
-                  key={n}
-                  onClick={() => setArcCount(n)}
-                  className={`flex-1 py-1.5 text-xs rounded-md border cursor-pointer transition-all ${
-                    arcCount === n
-                      ? "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold"
-                      : "border-black/10 bg-transparent text-gray-500"
-                  }`}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Desktop-only: month filter, arc count, hourly chart */}
+        <div className="hidden md:flex md:flex-col md:gap-3">
+          {activeLayer !== "live" && (
+            <MonthFilter
+              months={months}
+              selected={selectedMonth}
+              onChange={setSelectedMonth}
+            />
+          )}
 
-        {activeLayer !== "live" && <div className="hidden md:block"><HourlyChart data={hourly} /></div>}
+          {activeLayer === "arcs" && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[11px] uppercase tracking-wide text-gray-400">Top Routes</label>
+              <div className="flex gap-1">
+                {[50, 100, 200, 500].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setArcCount(n)}
+                    className={`flex-1 py-1.5 text-xs rounded-md border cursor-pointer transition-all ${
+                      arcCount === n
+                        ? "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold"
+                        : "border-black/10 bg-transparent text-gray-500"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeLayer !== "live" && <HourlyChart data={hourly} />}
+        </div>
       </div>
 
       {/* Sidebar toggle button (mobile) */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="md:hidden absolute top-20 right-3 z-20 bg-white/92 backdrop-blur-md border border-black/8 shadow-md rounded-lg px-3 py-2 text-xs font-semibold text-purple-600 cursor-pointer"
+        className="md:hidden absolute top-[90px] right-3 z-20 bg-white/92 backdrop-blur-md border border-black/8 shadow-md rounded-lg px-3 py-2 text-xs font-semibold text-purple-600 cursor-pointer"
       >
-        {sidebarOpen ? "Close" : "Details"}
+        {sidebarOpen ? "\u2715" : "Details"}
       </button>
 
-      <Sidebar flows={flows} stations={stations} activeLayer={activeLayer} liveCoverage={liveCoverage} liveTrends={liveTrends} liveStations={liveStations} onHoverStation={setHighlightedStationId} onClickStation={setSelectedStation} sidebarOpen={sidebarOpen} />
+      {/* Mobile backdrop — tap to close sidebar */}
+      {sidebarOpen && <div className="md:hidden fixed inset-0 bg-black/20 z-14" onClick={() => setSidebarOpen(false)} />}
+      <Sidebar flows={flows} stations={stations} activeLayer={activeLayer} liveCoverage={liveCoverage} liveTrends={liveTrends} liveStations={liveStations} onHoverStation={setHighlightedStationId} onHoverRoute={setHighlightedRoute} onClickStation={setSelectedStation} sidebarOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} hourly={hourly} months={months} selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} arcCount={arcCount} onArcCountChange={setArcCount} />
       {activeLayer === "live" ? <LiveLegend /> : <Legend activeLayer={activeLayer} />}
       <StationModal station={selectedStation} onClose={() => setSelectedStation(null)} />
+      <WelcomeModal />
 
       {error && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white border border-red-600 text-red-600 px-6 py-4 rounded-lg flex gap-3 items-center shadow-lg">

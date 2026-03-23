@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { getStationNames, getRouteLookup } from "../api";
+import MonthFilter from "./MonthFilter";
+import HourlyChart from "./HourlyChart";
 
 function fmt(n) {
   if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
@@ -358,13 +360,13 @@ function TopStationsSection({ stations, onHoverStation }) {
 
 // ─── Section: Top Routes ─────────────────────────────────────────────────────
 
-function TopRoutesSection({ flows }) {
+function TopRoutesSection({ flows, onHoverRoute }) {
   const top = (flows || []).slice(0, 10);
   return (
     <Section label="Top Routes" description="Most popular origin-destination pairs by trip count.">
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5" onMouseLeave={() => onHoverRoute?.(null)}>
         {top.map((f, i) => (
-          <div key={i} className="flex items-center gap-2">
+          <div key={i} className="flex items-center gap-2 cursor-pointer" onMouseEnter={() => onHoverRoute?.(f)}>
             <span className="w-5 text-right text-[11px] font-semibold text-gray-400 shrink-0">{i + 1}</span>
             <div
               className="flex-1 relative min-h-7 rounded bg-gray-100 flex items-center overflow-hidden"
@@ -388,7 +390,7 @@ function TopRoutesSection({ flows }) {
 
 // ─── Main sidebar ────────────────────────────────────────────────────────────
 
-export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation, onClickStation, liveStations = [], sidebarOpen = false }) {
+export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation, onHoverRoute, onClickStation, liveStations = [], sidebarOpen = false, onClose, hourly = [], months = [], selectedMonth = "all", onMonthChange, arcCount = 200, onArcCountChange }) {
   // Look up full live station object by station_id and fire onClickStation
   function handleStationClick(stationId) {
     if (!onClickStation) return;
@@ -397,8 +399,40 @@ export default function Sidebar({ flows, stations, activeLayer, liveCoverage = {
   }
 
   return (
-    <div className={`absolute top-[52px] md:top-[68px] right-0 bottom-0 w-[85vw] max-w-[360px] bg-white/95 backdrop-blur-md border-l border-black/8 shadow-md flex flex-col z-15 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "translate-x-full pointer-events-none"} md:translate-x-0 md:pointer-events-auto`}>
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-5">
+    <div className={`absolute top-[86px] md:top-[68px] right-0 bottom-0 w-[85vw] max-w-[360px] bg-white/95 backdrop-blur-md border-l border-black/8 shadow-md flex flex-col z-15 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "translate-x-full pointer-events-none"} md:translate-x-0 md:pointer-events-auto`}>
+      {/* Mobile drag handle */}
+      <div className="md:hidden flex justify-center pt-2 pb-1" onClick={onClose}>
+        <div className="w-8 h-1 rounded-full bg-gray-300" />
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 pt-2 md:pt-4 flex flex-col gap-5">
+        {/* Mobile-only: month filter + arc count */}
+        {activeLayer !== "live" && (
+          <div className="md:hidden flex flex-col gap-3">
+            <MonthFilter months={months} selected={selectedMonth} onChange={onMonthChange} />
+            {activeLayer === "arcs" && (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11px] uppercase tracking-wide text-gray-400">Top Routes</label>
+                <div className="flex gap-1">
+                  {[50, 100, 200, 500].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => onArcCountChange?.(n)}
+                      className={`flex-1 py-1.5 text-xs rounded-md border cursor-pointer transition-all ${
+                        arcCount === n
+                          ? "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold"
+                          : "border-black/10 bg-transparent text-gray-500"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <HourlyChart data={hourly} />
+            <Divider />
+          </div>
+        )}
         {activeLayer === "live" && (
           <>
             <EmptiestSection data={liveCoverage.emptiest || []} onHoverStation={onHoverStation} onClickStation={handleStationClick} />
@@ -414,7 +448,7 @@ export default function Sidebar({ flows, stations, activeLayer, liveCoverage = {
             <Divider />
             <TopStationsSection stations={stations} onHoverStation={onHoverStation} />
             <Divider />
-            <TopRoutesSection flows={flows} />
+            <TopRoutesSection flows={flows} onHoverRoute={onHoverRoute} />
           </>
         )}
       </div>

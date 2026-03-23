@@ -79,3 +79,7 @@ export function getStationHistory(stationId, hours = 24) {
   const params = new URLSearchParams({ hours: String(hours) });
   return fetchJSON(`/station-history/${encodeURIComponent(stationId)}?${params}`);
 }
+
+export function getStationLastEbike(stationId) {
+  return fetchJSON(`/station-last-ebike/${encodeURIComponent(stationId)}`);
+}

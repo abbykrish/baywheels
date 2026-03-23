@@ -21,20 +21,54 @@ gbfsApp.get("/api/live/bikes", (c) => {
 
 // ─── GET /api/live/meta ──────────────────────────────────────────────────────
 
-gbfsApp.get("/api/live/meta", (c) => {
+gbfsApp.get("/api/live/meta", async (c) => {
   const stations = getLatestStations();
   const bikes = getLatestFreeBikes();
   const lastPoll = getLastPollTime();
 
   const totalEbikes = stations.reduce((sum, s) => sum + s.num_ebikes_available, 0);
+  const totalBikes = stations.reduce((sum, s) => sum + s.num_bikes_available, 0);
+  const totalClassics = totalBikes - totalEbikes;
   const stationsAtZero = stations.filter((s) => s.num_ebikes_available === 0 && s.is_installed).length;
+
+  // Circulation: total absolute ebike/classic movements over last 6 hours
+  let ebike_circulation = 0;
+  let classic_circulation = 0;
+  try {
+    const cutoff = new Date(Date.now() - 6 * 60 * 60 * 1000)
+      .toISOString().replace("T", " ").slice(0, 19);
+    const rows = await query(`
+      WITH ordered AS (
+        SELECT
+          station_id,
+          num_ebikes_available AS ebikes,
+          num_bikes_available - num_ebikes_available AS classics,
+          lag(num_ebikes_available) OVER (PARTITION BY station_id ORDER BY snapshot_ts) AS prev_ebikes,
+          lag(num_bikes_available - num_ebikes_available) OVER (PARTITION BY station_id ORDER BY snapshot_ts) AS prev_classics
+        FROM gbfs_station_snapshots
+        WHERE snapshot_ts >= '${cutoff}'
+      )
+      SELECT
+        sum(abs(ebikes - prev_ebikes)) AS ebike_moves,
+        sum(abs(classics - prev_classics)) AS classic_moves
+      FROM ordered
+      WHERE prev_ebikes IS NOT NULL
+    `);
+    if (rows.length) {
+      ebike_circulation = Number(rows[0].ebike_moves ?? 0);
+      classic_circulation = Number(rows[0].classic_moves ?? 0);
+    }
+  } catch {}
 
   return c.json({
     last_poll: lastPoll?.toISOString() ?? null,
     station_count: stations.length,
     free_bike_count: bikes.length,
     total_ebikes: totalEbikes,
+    total_classics: totalClassics,
     stations_at_zero_ebikes: stationsAtZero,
+    ebike_circulation,
+    classic_circulation,
   });
 });
 
@@ -153,4 +187,51 @@ gbfsApp.get("/api/station-history/:stationId", async (c) => {
     ebikes: Number(r.num_ebikes_available),
     docks: Number(r.num_docks_available),
   })));
+});
+
+// ─── GET /api/station-last-ebike/:stationId ─────────────────────────────────
+// Average time-of-day when the last ebike left the station (over the past week)
+
+gbfsApp.get("/api/station-last-ebike/:stationId", async (c) => {
+  const stationId = c.req.param("stationId");
+  const escapedId = stationId.replace(/'/g, "''");
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString().replace("T", " ").slice(0, 19);
+
+  const rows = await query(`
+    WITH snapshots AS (
+      SELECT
+        snapshot_ts,
+        num_ebikes_available,
+        lag(num_ebikes_available) OVER (ORDER BY snapshot_ts) AS prev_ebikes
+      FROM gbfs_station_snapshots
+      WHERE station_id = '${escapedId}'
+        AND snapshot_ts >= '${cutoff}'
+    )
+    SELECT snapshot_ts
+    FROM snapshots
+    WHERE prev_ebikes > 0 AND num_ebikes_available = 0
+    ORDER BY snapshot_ts
+  `);
+
+  if (!rows.length) {
+    return c.json({ avg_time: null, occurrences: 0 });
+  }
+
+  // Average the time-of-day (in minutes from midnight)
+  let totalMinutes = 0;
+  for (const r of rows) {
+    const d = new Date(String(r.snapshot_ts).replace(" ", "T") + "Z");
+    // Convert to local Pacific time approximation (UTC-7 for PDT)
+    const local = new Date(d.getTime() - 7 * 60 * 60 * 1000);
+    totalMinutes += local.getUTCHours() * 60 + local.getUTCMinutes();
+  }
+  const avgMin = Math.round(totalMinutes / rows.length);
+  const h = Math.floor(avgMin / 60);
+  const m = avgMin % 60;
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hr = h % 12 || 12;
+  const avg_time = `${hr}:${String(m).padStart(2, "0")} ${ampm}`;
+
+  return c.json({ avg_time, occurrences: rows.length });
 });
