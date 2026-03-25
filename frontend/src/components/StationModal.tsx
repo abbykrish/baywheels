@@ -37,6 +37,27 @@ function formatTime(ts: string, showDate = false) {
 
 type ChartFilter = "all" | "ebikes" | "classics";
 
+function downsample(data: HistoryPoint[], maxPoints: number): HistoryPoint[] {
+  if (data.length <= maxPoints) return data;
+  const step = data.length / maxPoints;
+  const result: HistoryPoint[] = [];
+  for (let i = 0; i < maxPoints; i++) {
+    const start = Math.floor(i * step);
+    const end = Math.floor((i + 1) * step);
+    const chunk = data.slice(start, end);
+    if (!chunk.length) continue;
+    // Use average values for smoother lines
+    const avg = {
+      ts: chunk[Math.floor(chunk.length / 2)].ts,
+      bikes: Math.round(chunk.reduce((s, d) => s + d.bikes, 0) / chunk.length),
+      ebikes: Math.round(chunk.reduce((s, d) => s + d.ebikes, 0) / chunk.length),
+      docks: Math.round(chunk.reduce((s, d) => s + d.docks, 0) / chunk.length),
+    };
+    result.push(avg);
+  }
+  return result;
+}
+
 function MiniChart({ history, capacity, showDate = false }: { history: HistoryPoint[]; capacity: number; showDate?: boolean }) {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const [filter, setFilter] = useState<ChartFilter>("all");
@@ -46,36 +67,39 @@ function MiniChart({ history, capacity, showDate = false }: { history: HistoryPo
     return <div className="text-xs text-gray-400 text-center py-4">No snapshot history yet.</div>;
   }
 
-  const classics = history.map((d) => d.bikes - d.ebikes);
+  // Downsample to ~200 points for readability
+  const data = downsample(history, 200);
+
+  const classics = data.map((d) => d.bikes - d.ebikes);
   const maxY = Math.max(
     capacity,
-    ...history.map((d, i) =>
+    ...data.map((d, i) =>
       filter === "ebikes" ? d.ebikes : filter === "classics" ? classics[i] : d.bikes
     ),
     1,
   );
   const W = 400;
-  const H = 130;
+  const H = showDate ? 160 : 130;
   const PAD = { top: 8, right: 12, bottom: 20, left: 28 };
   const cw = W - PAD.left - PAD.right;
   const ch = H - PAD.top - PAD.bottom;
 
-  const x = (i: number) => PAD.left + (i / (history.length - 1)) * cw;
+  const x = (i: number) => PAD.left + (i / (data.length - 1)) * cw;
   const y = (v: number) => PAD.top + ch - (v / maxY) * ch;
 
-  const ebikeLine = history.map((d, i) => `${x(i)},${y(d.ebikes)}`).join(" ");
-  const bikeLine = history.map((d, i) => `${x(i)},${y(d.bikes)}`).join(" ");
-  const classicLine = history.map((d, i) => `${x(i)},${y(classics[i])}`).join(" ");
+  const ebikeLine = data.map((d, i) => `${x(i)},${y(d.ebikes)}`).join(" ");
+  const bikeLine = data.map((d, i) => `${x(i)},${y(d.bikes)}`).join(" ");
+  const classicLine = data.map((d, i) => `${x(i)},${y(classics[i])}`).join(" ");
 
   const yTicks: number[] = [];
   const step = maxY <= 10 ? 2 : maxY <= 30 ? 5 : 10;
   for (let v = 0; v <= maxY; v += step) yTicks.push(v);
 
-  const labelCount = 4;
+  const labelCount = showDate ? 5 : 4;
   const xLabels: { i: number; label: string }[] = [];
   for (let n = 0; n < labelCount; n++) {
-    const i = Math.round((n / (labelCount - 1)) * (history.length - 1));
-    xLabels.push({ i, label: formatTime(history[i].ts, showDate) });
+    const i = Math.round((n / (labelCount - 1)) * (data.length - 1));
+    xLabels.push({ i, label: formatTime(data[i].ts, showDate) });
   }
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -84,12 +108,12 @@ function MiniChart({ history, capacity, showDate = false }: { history: HistoryPo
     const rect = svg.getBoundingClientRect();
     const svgX = ((e.clientX - rect.left) / rect.width) * W;
     const ratio = (svgX - PAD.left) / cw;
-    const idx = Math.round(ratio * (history.length - 1));
-    if (idx >= 0 && idx < history.length) setHoverIdx(idx);
+    const idx = Math.round(ratio * (data.length - 1));
+    if (idx >= 0 && idx < data.length) setHoverIdx(idx);
     else setHoverIdx(null);
   };
 
-  const hoverPoint = hoverIdx != null ? history[hoverIdx] : null;
+  const hoverPoint = hoverIdx != null ? data[hoverIdx] : null;
   const hoverClassics = hoverIdx != null ? classics[hoverIdx] : 0;
 
   const FILTERS: { value: ChartFilter; label: string; color: string; activeColor: string }[] = [

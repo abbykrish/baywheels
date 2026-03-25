@@ -47,7 +47,7 @@ export async function runRetentionIfNeeded(): Promise<void> {
       avg(num_docks_available) AS avg_docks_available,
       min(num_ebikes_available) AS min_ebikes_available,
       max(num_ebikes_available) AS max_ebikes_available,
-      sum(CASE WHEN num_ebikes_available = 0 THEN 5.0 ELSE 0.0 END) AS minutes_at_zero_ebikes,
+      sum(CASE WHEN num_ebikes_available = 0 THEN 1.0 ELSE 0.0 END) AS minutes_at_zero_ebikes,
       count(*) AS sample_count
     FROM gbfs_station_snapshots
     WHERE snapshot_ts < '${cutoff7d}'

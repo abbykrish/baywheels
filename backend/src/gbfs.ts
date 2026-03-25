@@ -71,7 +71,7 @@ const STATION_INFO_URL = `${GBFS_BASE}/station_information.json`;
 const STATION_STATUS_URL = `${GBFS_BASE}/station_status.json`;
 const FREE_BIKE_URL = `${GBFS_BASE}/free_bike_status.json`;
 
-const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const POLL_INTERVAL_MS = 1 * 60 * 1000; // 1 minute
 const STATION_INFO_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const FETCH_TIMEOUT_MS = 15_000;
 
@@ -278,7 +278,7 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 export async function startGbfsPoller(): Promise<void> {
   await ensureTables();
-  console.log("Starting GBFS poller (5-minute interval)...");
+  console.log("Starting GBFS poller (1-minute interval)...");
 
   // Initial poll
   await pollCycle();
