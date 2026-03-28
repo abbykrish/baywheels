@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Bay Wheels Trip Visualizer</title>
     <link
       rel="stylesheet"
@@ -32,6 +32,7 @@
         border-radius: 16px 16px 0 0;
         box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
         align-self: flex-end;
+        padding-bottom: env(safe-area-inset-bottom, 0);
       }
       @media (min-width: 768px) {
         .station-modal-card {

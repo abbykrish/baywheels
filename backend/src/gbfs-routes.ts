@@ -198,40 +198,64 @@ gbfsApp.get("/api/station-last-ebike/:stationId", async (c) => {
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     .toISOString().replace("T", " ").slice(0, 19);
 
+  // Get all snapshots for the past week, ordered by time
   const rows = await query(`
-    WITH snapshots AS (
-      SELECT
-        snapshot_ts,
-        num_ebikes_available,
-        lag(num_ebikes_available) OVER (ORDER BY snapshot_ts) AS prev_ebikes
-      FROM gbfs_station_snapshots
-      WHERE station_id = '${escapedId}'
-        AND snapshot_ts >= '${cutoff}'
-    )
-    SELECT snapshot_ts
-    FROM snapshots
-    WHERE prev_ebikes > 0 AND num_ebikes_available = 0
+    SELECT snapshot_ts, num_ebikes_available
+    FROM gbfs_station_snapshots
+    WHERE station_id = '${escapedId}'
+      AND snapshot_ts >= '${cutoff}'
     ORDER BY snapshot_ts
   `);
 
   if (!rows.length) {
-    return c.json({ avg_time: null, occurrences: 0 });
+    return c.json({ avg_time: null, occurrences: 0, days_empty: 0, days_total: 0 });
   }
 
-  // Average the time-of-day (in minutes from midnight)
-  let totalMinutes = 0;
+  // Group snapshots by day (Pacific time, UTC-7 approx)
+  const PDT_OFFSET = 7 * 60 * 60 * 1000;
+  const byDay = new Map<string, { ts: Date; ebikes: number }[]>();
   for (const r of rows) {
     const d = new Date(String(r.snapshot_ts).replace(" ", "T") + "Z");
-    // Convert to local Pacific time approximation (UTC-7 for PDT)
-    const local = new Date(d.getTime() - 7 * 60 * 60 * 1000);
-    totalMinutes += local.getUTCHours() * 60 + local.getUTCMinutes();
+    const local = new Date(d.getTime() - PDT_OFFSET);
+    const dayKey = local.toISOString().slice(0, 10);
+    if (!byDay.has(dayKey)) byDay.set(dayKey, []);
+    byDay.get(dayKey)!.push({ ts: d, ebikes: Number(r.num_ebikes_available) });
   }
-  const avgMin = Math.round(totalMinutes / rows.length);
+
+  // For each day, find the first time ebikes hit 0 and stayed <=1 for 30+ min
+  const SUSTAIN_MS = 30 * 60 * 1000;
+  const depletionTimes: number[] = []; // minutes from midnight (Pacific)
+
+  for (const [, snapshots] of byDay) {
+    for (let i = 0; i < snapshots.length; i++) {
+      if (snapshots[i].ebikes > 0) continue;
+      // Found a zero — check if it stays <=1 for 30 min
+      const zeroStart = snapshots[i].ts.getTime();
+      let sustained = true;
+      let j = i + 1;
+      while (j < snapshots.length && snapshots[j].ts.getTime() - zeroStart < SUSTAIN_MS) {
+        if (snapshots[j].ebikes > 1) { sustained = false; break; }
+        j++;
+      }
+      // Need at least one more snapshot in the window to confirm
+      if (sustained && j > i + 1) {
+        const local = new Date(zeroStart - PDT_OFFSET);
+        depletionTimes.push(local.getUTCHours() * 60 + local.getUTCMinutes());
+        break; // only first sustained depletion per day
+      }
+    }
+  }
+
+  if (!depletionTimes.length) {
+    return c.json({ avg_time: null, occurrences: 0, days_empty: 0, days_total: byDay.size });
+  }
+
+  const avgMin = Math.round(depletionTimes.reduce((a, b) => a + b, 0) / depletionTimes.length);
   const h = Math.floor(avgMin / 60);
   const m = avgMin % 60;
   const ampm = h >= 12 ? "PM" : "AM";
   const hr = h % 12 || 12;
   const avg_time = `${hr}:${String(m).padStart(2, "0")} ${ampm}`;
 
-  return c.json({ avg_time, occurrences: rows.length });
+  return c.json({ avg_time, occurrences: depletionTimes.length, days_empty: depletionTimes.length, days_total: byDay.size });
 });

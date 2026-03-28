@@ -300,9 +300,9 @@ export default function StationModal({ station, onClose }: Props) {
           <div className="flex gap-2 flex-wrap">
             <StatPill label="Ebikes" value={station.num_ebikes_available} color="text-purple-600" />
             <StatPill label="Classic" value={classics} color="text-blue-500" />
-            <StatPill label="Docks" value={station.num_docks_available} color="text-gray-500" />
+
             <StatPill label={`Avg Fill (${HOUR_OPTIONS.find(o => o.value === hours)?.label})`} value={avgFill != null ? `${avgFill}%` : "\u2014"} color={avgFill == null ? "text-gray-400" : avgFill >= 50 ? "text-green-600" : avgFill >= 10 ? "text-amber-600" : "text-red-500"} />
-            <StatPill label="Ebikes Gone By" value={lastEbike?.avg_time ? lastEbike.avg_time.replace(" ", "") : "\u2014"} color="text-orange-600" title={`Avg time all ebikes are checked out (${lastEbike?.occurrences ?? 0} times in the last week)`} />
+            <StatPill label={lastEbike?.days_total ? `Gone By (${lastEbike.days_empty}/${lastEbike.days_total}d)` : "Ebikes Gone By"} value={lastEbike?.avg_time ? lastEbike.avg_time.replace(" ", "") : "\u2014"} color="text-orange-600" title="Avg time ebikes run out and stay empty for 30+ min. Shows how many days this happened out of the last week." />
           </div>
 
           <div className="mt-3 h-2 rounded-full bg-gray-200 overflow-hidden flex">

@@ -21,11 +21,11 @@ export default function WelcomeModal() {
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-[10000] bg-black/40 backdrop-blur-sm flex items-end md:items-center justify-center"
       onClick={dismiss}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 flex flex-col gap-4"
+        className="bg-white rounded-t-2xl md:rounded-2xl shadow-2xl w-full md:max-w-sm p-6 pb-8 md:pb-6 flex flex-col gap-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div>
