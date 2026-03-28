@@ -41,7 +41,7 @@ export default function LiveLegend() {
       </div>
 
       {/* Mobile: compact horizontal strip */}
-      <div className="md:hidden absolute bottom-[76px] left-3 right-3 bg-white/92 backdrop-blur-md rounded-lg border border-black/8 shadow-sm px-3 py-2 flex items-center gap-3 z-10 text-[10px]">
+      <div className="md:hidden fixed bottom-[52px] left-3 right-3 bg-white/92 backdrop-blur-md rounded-lg border border-black/8 shadow-sm px-3 py-2 flex items-center gap-3 z-10 text-[10px]">
         {STATION_COLORS.map(({ color, label }) => (
           <span key={label} className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />

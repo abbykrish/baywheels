@@ -123,7 +123,7 @@ export default function App() {
       <MapView flows={flows} stations={stations} activeLayer={activeLayer} liveStations={liveStations} liveBikes={liveBikes} liveTrends={liveTrends} highlightedStationId={highlightedStationId} highlightedRoute={highlightedRoute} onClickStation={setSelectedStation} />
 
       {/* Controls panel — desktop: full card, mobile: compact bottom bar */}
-      <div className="absolute bottom-0 left-0 right-0 md:bottom-6 md:left-6 md:right-auto bg-white/92 backdrop-blur-md md:rounded-xl border-t md:border border-black/8 shadow-md p-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:p-4 md:w-[320px] flex flex-col gap-2 md:gap-3 z-10">
+      <div className="fixed md:absolute bottom-0 left-0 right-0 md:bottom-6 md:left-6 md:right-auto bg-white/92 backdrop-blur-md md:rounded-xl border-t md:border border-black/8 shadow-md p-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:p-4 md:w-[320px] flex flex-col gap-2 md:gap-3 z-10">
         {/* Layer tabs — always visible */}
         <div className="flex gap-1">
           {LAYERS.map((l) => (
