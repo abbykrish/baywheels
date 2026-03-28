@@ -213,20 +213,26 @@ gbfsApp.get("/api/station-last-ebike/:stationId", async (c) => {
 
   // Group snapshots by day (Pacific time, UTC-7 approx)
   const PDT_OFFSET = 7 * 60 * 60 * 1000;
+  // Get the 7 most recent full calendar days (exclude today since it's partial)
+  const todayLocal = new Date(Date.now() - PDT_OFFSET).toISOString().slice(0, 10);
   const byDay = new Map<string, { ts: Date; ebikes: number }[]>();
   for (const r of rows) {
     const d = new Date(String(r.snapshot_ts).replace(" ", "T") + "Z");
     const local = new Date(d.getTime() - PDT_OFFSET);
     const dayKey = local.toISOString().slice(0, 10);
+    if (dayKey === todayLocal) continue; // skip partial today
     if (!byDay.has(dayKey)) byDay.set(dayKey, []);
     byDay.get(dayKey)!.push({ ts: d, ebikes: Number(r.num_ebikes_available) });
   }
+  // Keep only the 7 most recent days
+  const sortedDays = [...byDay.keys()].sort().slice(-7);
+  const filteredDays = new Map(sortedDays.map((k) => [k, byDay.get(k)!]));
 
   // For each day, find the first time ebikes hit 0 and stayed <=1 for 30+ min
   const SUSTAIN_MS = 30 * 60 * 1000;
   const depletionTimes: number[] = []; // minutes from midnight (Pacific)
 
-  for (const [, snapshots] of byDay) {
+  for (const [, snapshots] of filteredDays) {
     for (let i = 0; i < snapshots.length; i++) {
       if (snapshots[i].ebikes > 0) continue;
       // Found a zero — check if it stays <=1 for 30 min
@@ -247,7 +253,7 @@ gbfsApp.get("/api/station-last-ebike/:stationId", async (c) => {
   }
 
   if (!depletionTimes.length) {
-    return c.json({ avg_time: null, occurrences: 0, days_empty: 0, days_total: byDay.size });
+    return c.json({ avg_time: null, occurrences: 0, days_empty: 0, days_total: filteredDays.size });
   }
 
   const avgMin = Math.round(depletionTimes.reduce((a, b) => a + b, 0) / depletionTimes.length);
@@ -257,5 +263,5 @@ gbfsApp.get("/api/station-last-ebike/:stationId", async (c) => {
   const hr = h % 12 || 12;
   const avg_time = `${hr}:${String(m).padStart(2, "0")} ${ampm}`;
 
-  return c.json({ avg_time, occurrences: depletionTimes.length, days_empty: depletionTimes.length, days_total: byDay.size });
+  return c.json({ avg_time, occurrences: depletionTimes.length, days_empty: depletionTimes.length, days_total: filteredDays.size });
 });

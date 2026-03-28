@@ -302,13 +302,9 @@ export default function StationModal({ station, onClose }: Props) {
             <StatPill label="Classic" value={classics} color="text-blue-500" />
 
             <StatPill label={`Avg Fill (${HOUR_OPTIONS.find(o => o.value === hours)?.label})`} value={avgFill != null ? `${avgFill}%` : "\u2014"} color={avgFill == null ? "text-gray-400" : avgFill >= 50 ? "text-green-600" : avgFill >= 10 ? "text-amber-600" : "text-red-500"} />
-            <StatPill label={lastEbike?.days_total ? `Gone By (${lastEbike.days_empty}/${lastEbike.days_total}d)` : "Ebikes Gone By"} value={lastEbike?.avg_time ? lastEbike.avg_time.replace(" ", "") : "\u2014"} color="text-orange-600" title="Avg time ebikes run out and stay empty for 30+ min. Shows how many days this happened out of the last week." />
+            <StatPill label={lastEbike?.days_total ? `Empty By (${lastEbike.days_empty}/${lastEbike.days_total} days)` : "Station Empty By"} value={lastEbike?.avg_time ? lastEbike.avg_time.replace(" ", "") : "\u2014"} color="text-orange-600" title="Avg time ebikes run out and stay empty for 30+ min. Shows how many days this happened out of the last 7 days." />
           </div>
 
-          <div className="mt-3 h-2 rounded-full bg-gray-200 overflow-hidden flex">
-            <div className="h-full bg-purple-500" style={{ width: `${station.capacity ? (station.num_ebikes_available / station.capacity) * 100 : 0}%` }} />
-            <div className="h-full bg-blue-400" style={{ width: `${station.capacity ? (classics / station.capacity) * 100 : 0}%` }} />
-          </div>
         </div>
 
         {/* Time-series chart */}
@@ -343,7 +339,7 @@ export default function StationModal({ station, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 pb-4 text-[10px] text-gray-400">
+        <div className="px-5 pb-6 md:pb-4 text-[10px] text-gray-400">
           Station ID: {station.station_id}
         </div>
       </div>
