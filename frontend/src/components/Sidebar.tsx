@@ -241,6 +241,8 @@ function DeltaBadge({ delta, label }) {
 }
 
 function RecentChangesSection({ data, onHoverStation, onClickStation = null }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? data : data.slice(0, 5);
   return (
     <Section
       label="Recent Changes"
@@ -250,7 +252,7 @@ function RecentChangesSection({ data, onHoverStation, onClickStation = null }) {
         {data.length === 0 && (
           <div className="text-xs text-gray-400 text-center py-2">Need 2+ snapshots to show trends.</div>
         )}
-        {data.slice(0, 15).map((t) => {
+        {visible.map((t) => {
           const gaining = t.bike_delta > 0;
           const classics = Math.max(0, t.bikes_now - t.ebikes_now);
           const total = t.bikes_now + (t.docks_now || 0);
@@ -287,6 +289,14 @@ function RecentChangesSection({ data, onHoverStation, onClickStation = null }) {
             </div>
           );
         })}
+        {data.length > 5 && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-[10px] text-purple-600 font-medium bg-transparent border-none cursor-pointer py-1 hover:underline"
+          >
+            {expanded ? "Show less" : `Show all ${data.length}`}
+          </button>
+        )}
       </div>
     </Section>
   );
