@@ -5,106 +5,49 @@ import { ensureRetentionTables } from "./gbfs-retention.js";
 
 export const gbfsApp = new Hono();
 
-// ─── GET /api/live/stations ──────────────────────────────────────────────────
+// ─── Cached heavy queries (recomputed at most once per minute) ──────────────
 
-gbfsApp.get("/api/live/stations", (c) => {
+let coverageCache: { data: any; ts: number } | null = null;
+let metaCache: { data: any; ts: number } | null = null;
+let trendsCache: { data: any; ts: number } | null = null;
+const CACHE_TTL = 60_000;
+
+async function getCachedCoverage(limit: number) {
+  if (coverageCache && Date.now() - coverageCache.ts < CACHE_TTL) {
+    const d = coverageCache.data;
+    return { emptiest: d.emptiest.slice(0, limit), best: d.best.slice(0, limit) };
+  }
+
   const stations = getLatestStations();
-  return c.json(stations);
-});
-
-// ─── GET /api/live/bikes ─────────────────────────────────────────────────────
-
-gbfsApp.get("/api/live/bikes", (c) => {
-  const bikes = getLatestFreeBikes();
-  return c.json(bikes);
-});
-
-// ─── GET /api/live/meta ──────────────────────────────────────────────────────
-
-gbfsApp.get("/api/live/meta", async (c) => {
-  const stations = getLatestStations();
-  const bikes = getLatestFreeBikes();
-  const lastPoll = getLastPollTime();
-
-  const totalEbikes = stations.reduce((sum, s) => sum + s.num_ebikes_available, 0);
-  const totalBikes = stations.reduce((sum, s) => sum + s.num_bikes_available, 0);
-  const totalClassics = totalBikes - totalEbikes;
-  const stationsAtZero = stations.filter((s) => s.num_ebikes_available === 0 && s.is_installed).length;
-
-  // Circulation: total absolute ebike/classic movements over last 6 hours
-  let ebike_circulation = 0;
-  let classic_circulation = 0;
-  try {
-    const cutoff = new Date(Date.now() - 6 * 60 * 60 * 1000)
-      .toISOString().replace("T", " ").slice(0, 19);
-    const rows = await query(`
-      WITH ordered AS (
-        SELECT
-          station_id,
-          num_ebikes_available AS ebikes,
-          num_bikes_available - num_ebikes_available AS classics,
-          lag(num_ebikes_available) OVER (PARTITION BY station_id ORDER BY snapshot_ts) AS prev_ebikes,
-          lag(num_bikes_available - num_ebikes_available) OVER (PARTITION BY station_id ORDER BY snapshot_ts) AS prev_classics
-        FROM gbfs_station_snapshots
-        WHERE snapshot_ts >= '${cutoff}'
-      )
-      SELECT
-        sum(abs(ebikes - prev_ebikes)) AS ebike_moves,
-        sum(abs(classics - prev_classics)) AS classic_moves
-      FROM ordered
-      WHERE prev_ebikes IS NOT NULL
-    `);
-    if (rows.length) {
-      ebike_circulation = Number(rows[0].ebike_moves ?? 0);
-      classic_circulation = Number(rows[0].classic_moves ?? 0);
-    }
-  } catch {}
-
-  return c.json({
-    last_poll: lastPoll?.toISOString() ?? null,
-    station_count: stations.length,
-    free_bike_count: bikes.length,
-    total_ebikes: totalEbikes,
-    total_classics: totalClassics,
-    stations_at_zero_ebikes: stationsAtZero,
-    ebike_circulation,
-    classic_circulation,
-  });
-});
-
-// ─── GET /api/live/coverage ───────────────────────────────────────────────────
-
-gbfsApp.get("/api/live/coverage", async (c) => {
-  const limit = Number(c.req.query("limit") ?? 10);
-  const stations = getLatestStations();
-
-  // Query % of time each station had 0 ebikes over last 24h
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
     .toISOString().replace("T", " ").slice(0, 19);
+  const cutoff2d = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
+    .toISOString().replace("T", " ").slice(0, 19);
+
   let emptyMap = new Map<string, number>();
   const decommissioned = new Set<string>();
-  try {
-    const cutoff2d = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
-      .toISOString().replace("T", " ").slice(0, 19);
-    const rows = await query(`
-      SELECT station_id,
-             count(*) AS total,
-             sum(CASE WHEN num_bikes_available = 0 THEN 1 ELSE 0 END) AS zero
-      FROM gbfs_station_snapshots
-      WHERE snapshot_ts >= '${cutoff}'
-        AND extract('hour' FROM snapshot_ts) >= 6
-      GROUP BY station_id
-    `);
-    // Detect stations at 0 bikes for 2+ days straight
-    const deadRows = await query(`
-      SELECT station_id
-      FROM gbfs_station_snapshots
-      WHERE snapshot_ts >= '${cutoff2d}'
-      GROUP BY station_id
-      HAVING max(num_bikes_available) = 0
-    `);
-    for (const r of deadRows) decommissioned.add(String(r.station_id));
 
+  try {
+    const [rows, deadRows] = await Promise.all([
+      query(`
+        SELECT station_id,
+               count(*) AS total,
+               sum(CASE WHEN num_bikes_available = 0 THEN 1 ELSE 0 END) AS zero
+        FROM gbfs_station_snapshots
+        WHERE snapshot_ts >= '${cutoff}'
+          AND extract('hour' FROM snapshot_ts) >= 6
+        GROUP BY station_id
+      `),
+      query(`
+        SELECT station_id
+        FROM gbfs_station_snapshots
+        WHERE snapshot_ts >= '${cutoff2d}'
+        GROUP BY station_id
+        HAVING max(num_bikes_available) = 0
+      `),
+    ]);
+
+    for (const r of deadRows) decommissioned.add(String(r.station_id));
     for (const r of rows) {
       const total = Number(r.total);
       const zero = Number(r.zero);
@@ -134,23 +77,99 @@ gbfsApp.get("/api/live/coverage", async (c) => {
       };
     });
 
-  // Emptiest: highest % time empty first, tiebreak by fewer current ebikes
   const emptiest = [...all]
-    .sort((a, b) => b.pct_time_empty - a.pct_time_empty || a.ebikes - b.ebikes)
-    .slice(0, limit);
-
-  // Best: lowest % time empty first, tiebreak by more current ebikes
+    .sort((a, b) => b.pct_time_empty - a.pct_time_empty || a.ebikes - b.ebikes);
   const best = [...all]
-    .sort((a, b) => a.pct_time_empty - b.pct_time_empty || b.ebikes - a.ebikes)
-    .slice(0, limit);
+    .sort((a, b) => a.pct_time_empty - b.pct_time_empty || b.ebikes - a.ebikes);
 
-  return c.json({ emptiest, best });
+  coverageCache = { data: { emptiest, best }, ts: Date.now() };
+  return { emptiest: emptiest.slice(0, limit), best: best.slice(0, limit) };
+}
+
+// ─── GET /api/live/stations ──────────────────────────────────────────────────
+
+gbfsApp.get("/api/live/stations", (c) => {
+  const stations = getLatestStations();
+  return c.json(stations);
+});
+
+// ─── GET /api/live/bikes ─────────────────────────────────────────────────────
+
+gbfsApp.get("/api/live/bikes", (c) => {
+  const bikes = getLatestFreeBikes();
+  return c.json(bikes);
+});
+
+// ─── GET /api/live/meta ──────────────────────────────────────────────────────
+
+gbfsApp.get("/api/live/meta", async (c) => {
+  if (metaCache && Date.now() - metaCache.ts < CACHE_TTL) return c.json(metaCache.data);
+
+  const stations = getLatestStations();
+  const bikes = getLatestFreeBikes();
+  const lastPoll = getLastPollTime();
+
+  const totalEbikes = stations.reduce((sum, s) => sum + s.num_ebikes_available, 0);
+  const totalBikes = stations.reduce((sum, s) => sum + s.num_bikes_available, 0);
+  const totalClassics = totalBikes - totalEbikes;
+  const stationsAtZero = stations.filter((s) => s.num_ebikes_available === 0 && s.is_installed).length;
+
+  let ebike_circulation = 0;
+  let classic_circulation = 0;
+  try {
+    const cutoff = new Date(Date.now() - 6 * 60 * 60 * 1000)
+      .toISOString().replace("T", " ").slice(0, 19);
+    const rows = await query(`
+      WITH ordered AS (
+        SELECT
+          station_id,
+          num_ebikes_available AS ebikes,
+          num_bikes_available - num_ebikes_available AS classics,
+          lag(num_ebikes_available) OVER (PARTITION BY station_id ORDER BY snapshot_ts) AS prev_ebikes,
+          lag(num_bikes_available - num_ebikes_available) OVER (PARTITION BY station_id ORDER BY snapshot_ts) AS prev_classics
+        FROM gbfs_station_snapshots
+        WHERE snapshot_ts >= '${cutoff}'
+      )
+      SELECT
+        sum(abs(ebikes - prev_ebikes)) AS ebike_moves,
+        sum(abs(classics - prev_classics)) AS classic_moves
+      FROM ordered
+      WHERE prev_ebikes IS NOT NULL
+    `);
+    if (rows.length) {
+      ebike_circulation = Number(rows[0].ebike_moves ?? 0);
+      classic_circulation = Number(rows[0].classic_moves ?? 0);
+    }
+  } catch {}
+
+  const data = {
+    last_poll: lastPoll?.toISOString() ?? null,
+    station_count: stations.length,
+    free_bike_count: bikes.length,
+    total_ebikes: totalEbikes,
+    total_classics: totalClassics,
+    stations_at_zero_ebikes: stationsAtZero,
+    ebike_circulation,
+    classic_circulation,
+  };
+  metaCache = { data, ts: Date.now() };
+  return c.json(data);
+});
+
+// ─── GET /api/live/coverage ───────────────────────────────────────────────────
+
+gbfsApp.get("/api/live/coverage", async (c) => {
+  const limit = Number(c.req.query("limit") ?? 10);
+  const result = await getCachedCoverage(limit);
+  return c.json(result);
 });
 
 
 // ─── GET /api/live/trends ────────────────────────────────────────────────────
 
 gbfsApp.get("/api/live/trends", async (c) => {
+  if (trendsCache && Date.now() - trendsCache.ts < CACHE_TTL) return c.json(trendsCache.data);
+
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000)
     .toISOString().replace("T", " ").slice(0, 19);
   const rows = await query(`
@@ -189,7 +208,7 @@ gbfsApp.get("/api/live/trends", async (c) => {
     ORDER BY abs(cur.num_bikes_available - prev.num_bikes_available) DESC
   `);
 
-  return c.json(rows.map((r) => ({
+  const data = rows.map((r) => ({
     station_id: String(r.station_id),
     station_name: String(r.station_name),
     lat: Number(r.lat),
@@ -199,7 +218,9 @@ gbfsApp.get("/api/live/trends", async (c) => {
     docks_now: Number(r.docks_now),
     bike_delta: Number(r.bike_delta),
     ebike_delta: Number(r.ebike_delta),
-  })));
+  }));
+  trendsCache = { data, ts: Date.now() };
+  return c.json(data);
 });
 
 // ─── GET /api/station-history/:stationId ─────────────────────────────────────
