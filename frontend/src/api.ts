@@ -75,6 +75,10 @@ export function getLiveTrends() {
   return fetchJSON("/live/trends");
 }
 
+export function getLiveBusiestHour() {
+  return fetchJSON("/live/busiest-hour");
+}
+
 export function getStationHistory(stationId, hours = 24) {
   const params = new URLSearchParams({ hours: String(hours) });
   return fetchJSON(`/station-history/${encodeURIComponent(stationId)}?${params}`);

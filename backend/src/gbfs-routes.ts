@@ -74,9 +74,30 @@ gbfsApp.get("/api/live/meta", async (c) => {
 
 // ─── GET /api/live/coverage ───────────────────────────────────────────────────
 
-gbfsApp.get("/api/live/coverage", (c) => {
+gbfsApp.get("/api/live/coverage", async (c) => {
   const limit = Number(c.req.query("limit") ?? 10);
   const stations = getLatestStations();
+
+  // Query % of time each station had 0 ebikes over last 24h
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    .toISOString().replace("T", " ").slice(0, 19);
+  let emptyMap = new Map<string, number>();
+  try {
+    const rows = await query(`
+      SELECT station_id,
+             count(*) AS total,
+             sum(CASE WHEN num_bikes_available = 0 THEN 1 ELSE 0 END) AS zero
+      FROM gbfs_station_snapshots
+      WHERE snapshot_ts >= '${cutoff}'
+        AND extract('hour' FROM snapshot_ts) >= 6
+      GROUP BY station_id
+    `);
+    for (const r of rows) {
+      const total = Number(r.total);
+      const zero = Number(r.zero);
+      if (total > 0) emptyMap.set(String(r.station_id), Math.round((zero / total) * 100));
+    }
+  } catch {}
 
   const all = stations
     .filter((s) => s.is_installed && s.capacity > 0)
@@ -84,9 +105,7 @@ gbfsApp.get("/api/live/coverage", (c) => {
       const totalBikes = s.num_bikes_available;
       const emptyDocks = s.capacity - totalBikes;
       const fillPct = Math.round((totalBikes / s.capacity) * 100);
-      // Continuous: ebike fill ratio (0-1), tiebreak by more empty docks first
-      const ebikeRatio = s.num_ebikes_available / s.capacity;
-      const emptinessScore = ebikeRatio * 1000000 + (1000 - emptyDocks);
+      const pctTimeEmpty = emptyMap.get(s.station_id) ?? 0;
       return {
         station_id: s.station_id,
         station_name: s.name,
@@ -98,15 +117,44 @@ gbfsApp.get("/api/live/coverage", (c) => {
         docks_available: s.num_docks_available,
         empty_docks: emptyDocks,
         fill_pct: fillPct,
-        emptiness_score: emptinessScore,
+        pct_time_empty: pctTimeEmpty,
       };
-    })
-    .sort((a, b) => a.emptiness_score - b.emptiness_score);
+    });
 
-  return c.json({
-    emptiest: all.slice(0, limit),
-    best: all.slice(-limit).reverse(),
-  });
+  // Emptiest: highest % time empty first, tiebreak by fewer current ebikes
+  const emptiest = [...all]
+    .sort((a, b) => b.pct_time_empty - a.pct_time_empty || a.ebikes - b.ebikes)
+    .slice(0, limit);
+
+  // Best: lowest % time empty first, tiebreak by more current ebikes
+  const best = [...all]
+    .sort((a, b) => a.pct_time_empty - b.pct_time_empty || b.ebikes - a.ebikes)
+    .slice(0, limit);
+
+  return c.json({ emptiest, best });
+});
+
+// ─── GET /api/live/busiest-hour ──────────────────────────────────────────────
+
+gbfsApp.get("/api/live/busiest-hour", async (c) => {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString().replace("T", " ").slice(0, 19);
+
+  try {
+    const rows = await query(`
+      SELECT extract('hour' FROM started_at) AS hour, count(*) AS total_trips
+      FROM trips
+      WHERE started_at >= '${cutoff}'
+      GROUP BY hour
+      ORDER BY total_trips DESC
+      LIMIT 1
+    `);
+
+    if (!rows.length) return c.json({ hour: null, trips: 0 });
+    return c.json({ hour: Number(rows[0].hour), trips: Number(rows[0].total_trips) });
+  } catch {
+    return c.json({ hour: null, trips: 0 });
+  }
 });
 
 // ─── GET /api/live/trends ────────────────────────────────────────────────────

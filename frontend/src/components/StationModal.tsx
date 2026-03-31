@@ -35,6 +35,23 @@ function formatTime(ts: string, showDate = false) {
   }
 }
 
+interface RestockEvent {
+  ts: string;
+  jump: number;
+  ebikes_after: number;
+}
+
+function detectRestocks(history: HistoryPoint[], threshold = 5): RestockEvent[] {
+  const events: RestockEvent[] = [];
+  for (let i = 1; i < history.length; i++) {
+    const delta = history[i].ebikes - history[i - 1].ebikes;
+    if (delta >= threshold) {
+      events.push({ ts: history[i].ts, jump: delta, ebikes_after: history[i].ebikes });
+    }
+  }
+  return events;
+}
+
 type ChartFilter = "all" | "ebikes" | "classics";
 
 function downsample(data: HistoryPoint[], maxPoints: number): HistoryPoint[] {
@@ -264,6 +281,7 @@ export default function StationModal({ station, onClose }: Props) {
 
   if (!station) return null;
 
+  const restocks = detectRestocks(history);
   const classics = Math.max(0, station.num_bikes_available - station.num_ebikes_available);
   const activeHistory = history.filter((d) => {
     const hour = new Date(d.ts).getHours();
@@ -306,6 +324,24 @@ export default function StationModal({ station, onClose }: Props) {
           </div>
 
         </div>
+
+        {/* Restocks detected */}
+        {restocks.length > 0 && (
+          <div className="px-5 pb-3">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+              Restocks Detected ({restocks.length})
+            </span>
+            <div className="mt-1.5 flex flex-col gap-1">
+              {restocks.slice(-5).reverse().map((r, i) => (
+                <div key={i} className="flex items-center gap-2 text-[11px]">
+                  <span className="text-green-600 font-semibold">+{r.jump}</span>
+                  <span className="text-gray-500">{formatTime(r.ts)}</span>
+                  <span className="text-gray-400">({r.ebikes_after} ebikes after)</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Time-series chart */}
         <div className="px-5 pb-4">

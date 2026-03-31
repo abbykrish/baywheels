@@ -4,6 +4,7 @@ import MonthFilter from "./MonthFilter";
 import HourlyChart from "./HourlyChart";
 
 function fmt(n) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
   return n.toLocaleString();
 }
@@ -154,8 +155,17 @@ function CoverageRow({ s, i, onHoverStation, onClickStation = null }) {
         </div>
       </div>
       <div className="shrink-0 text-right">
-        <div className={`text-[12px] font-bold ${fillPct === 0 ? "text-red-600" : fillPct < 20 ? "text-red-500" : fillPct < 50 ? "text-amber-600" : "text-green-600"}`}>{fillPct}%</div>
-        <div className="text-[9px] text-gray-400">{s.bikes}/{s.capacity}</div>
+        {s.pct_time_empty != null ? (
+          <>
+            <div className={`text-[12px] font-bold ${s.pct_time_empty >= 50 ? "text-red-600" : s.pct_time_empty >= 20 ? "text-amber-600" : "text-green-600"}`}>{s.pct_time_empty}%</div>
+            <div className="text-[9px] text-gray-400">empty (24h)</div>
+          </>
+        ) : (
+          <>
+            <div className={`text-[12px] font-bold ${fillPct === 0 ? "text-red-600" : fillPct < 20 ? "text-red-500" : fillPct < 50 ? "text-amber-600" : "text-green-600"}`}>{fillPct}%</div>
+            <div className="text-[9px] text-gray-400">{s.bikes}/{s.capacity}</div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -164,18 +174,28 @@ function CoverageRow({ s, i, onHoverStation, onClickStation = null }) {
 // ─── Section: Emptiest Stations ──────────────────────────────────────────────
 
 function EmptiestSection({ data, onHoverStation, onClickStation = null }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? data : data.slice(0, 5);
   return (
     <Section
       label="Emptiest Stations"
-      description="Ranked by lowest ebike-to-capacity ratio. Stations with fewer ebikes relative to their size appear first; ties broken by most empty docks."
+      description="Ranked by % of time with 0 ebikes over the last 24 hours. Stations that spend the most time empty appear first."
     >
       <div className="flex flex-col gap-1.5">
         {data.length === 0 && (
           <div className="text-xs text-gray-400 text-center py-2">Waiting for live data...</div>
         )}
-        {data.map((s, i) => (
+        {visible.map((s, i) => (
           <CoverageRow key={s.station_id} s={s} i={i} onHoverStation={onHoverStation} onClickStation={onClickStation} />
         ))}
+        {data.length > 5 && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-[10px] text-purple-600 font-medium bg-transparent border-none cursor-pointer py-1 hover:underline"
+          >
+            {expanded ? "Show less" : `Show all ${data.length}`}
+          </button>
+        )}
       </div>
     </Section>
   );
@@ -184,15 +204,25 @@ function EmptiestSection({ data, onHoverStation, onClickStation = null }) {
 // ─── Section: Best Coverage ──────────────────────────────────────────────────
 
 function BestCoverageSection({ data, onHoverStation, onClickStation = null }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? data : data.slice(0, 5);
   return (
     <Section
       label="Best Coverage"
-      description="Stations with the highest bike fill rate and most ebikes available."
+      description="Stations that spend the least time empty over the last 24 hours."
     >
       <div className="flex flex-col gap-1.5">
-        {data.map((s, i) => (
+        {visible.map((s, i) => (
           <CoverageRow key={s.station_id} s={s} i={i} onHoverStation={onHoverStation} onClickStation={onClickStation} />
         ))}
+        {data.length > 5 && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="text-[10px] text-purple-600 font-medium bg-transparent border-none cursor-pointer py-1 hover:underline"
+          >
+            {expanded ? "Show less" : `Show all ${data.length}`}
+          </button>
+        )}
       </div>
     </Section>
   );
@@ -390,7 +420,7 @@ function TopRoutesSection({ flows, onHoverRoute }) {
 
 // ─── Main sidebar ────────────────────────────────────────────────────────────
 
-export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation, onHoverRoute, onClickStation, liveStations = [], sidebarOpen = false, onClose, hourly = [], months = [], selectedMonth = "all", onMonthChange, arcCount = 200, onArcCountChange }) {
+export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation, onHoverRoute, onClickStation, liveStations = [], busiestHour = null, sidebarOpen = false, onClose, hourly = [], months = [], selectedMonth = "all", onMonthChange, arcCount = 200, onArcCountChange }) {
   // Look up full live station object by station_id and fire onClickStation
   function handleStationClick(stationId) {
     if (!onClickStation) return;
@@ -435,6 +465,18 @@ export default function Sidebar({ flows, stations, activeLayer, liveCoverage = {
         )}
         {activeLayer === "live" && (
           <>
+            {busiestHour?.hour != null && (
+              <div className="flex items-center justify-between bg-purple-50 rounded-lg px-3 py-2">
+                <div>
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider">Busiest Hour (7d)</div>
+                  <div className="text-sm font-bold text-purple-600">{formatHour(busiestHour.hour)}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] text-gray-400">Total trips</div>
+                  <div className="text-sm font-semibold text-gray-700">{fmt(busiestHour.trips)}</div>
+                </div>
+              </div>
+            )}
             <EmptiestSection data={liveCoverage.emptiest || []} onHoverStation={onHoverStation} onClickStation={handleStationClick} />
             <Divider />
             <BestCoverageSection data={liveCoverage.best || []} onHoverStation={onHoverStation} onClickStation={handleStationClick} />
