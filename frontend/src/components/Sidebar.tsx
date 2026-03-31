@@ -468,12 +468,12 @@ export default function Sidebar({ flows, stations, activeLayer, liveCoverage = {
             {busiestHour?.hour != null && (
               <div className="flex items-center justify-between bg-purple-50 rounded-lg px-3 py-2">
                 <div>
-                  <div className="text-[10px] text-gray-400 uppercase tracking-wider">Busiest Hour (7d)</div>
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider">Busiest Hour (24h)</div>
                   <div className="text-sm font-bold text-purple-600">{formatHour(busiestHour.hour)}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[10px] text-gray-400">Total trips</div>
-                  <div className="text-sm font-semibold text-gray-700">{fmt(busiestHour.trips)}</div>
+                  <div className="text-[10px] text-gray-400">Departures</div>
+                  <div className="text-sm font-semibold text-gray-700">{fmt(busiestHour.departures)}</div>
                 </div>
               </div>
             )}

@@ -137,23 +137,35 @@ gbfsApp.get("/api/live/coverage", async (c) => {
 // ─── GET /api/live/busiest-hour ──────────────────────────────────────────────
 
 gbfsApp.get("/api/live/busiest-hour", async (c) => {
-  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
     .toISOString().replace("T", " ").slice(0, 19);
 
   try {
     const rows = await query(`
-      SELECT extract('hour' FROM started_at) AS hour, count(*) AS total_trips
-      FROM trips
-      WHERE started_at >= '${cutoff}'
+      WITH ordered AS (
+        SELECT
+          station_id,
+          extract('hour' FROM snapshot_ts) AS hour,
+          num_bikes_available AS bikes,
+          lag(num_bikes_available) OVER (PARTITION BY station_id ORDER BY snapshot_ts) AS prev_bikes
+        FROM gbfs_station_snapshots
+        WHERE snapshot_ts >= '${cutoff}'
+          AND extract('hour' FROM snapshot_ts) >= 6
+      )
+      SELECT
+        hour,
+        sum(CASE WHEN prev_bikes - bikes > 0 THEN prev_bikes - bikes ELSE 0 END) AS departures
+      FROM ordered
+      WHERE prev_bikes IS NOT NULL
       GROUP BY hour
-      ORDER BY total_trips DESC
+      ORDER BY departures DESC
       LIMIT 1
     `);
 
-    if (!rows.length) return c.json({ hour: null, trips: 0 });
-    return c.json({ hour: Number(rows[0].hour), trips: Number(rows[0].total_trips) });
+    if (!rows.length) return c.json({ hour: null, departures: 0 });
+    return c.json({ hour: Number(rows[0].hour), departures: Number(rows[0].departures) });
   } catch {
-    return c.json({ hour: null, trips: 0 });
+    return c.json({ hour: null, departures: 0 });
   }
 });
 
