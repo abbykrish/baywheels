@@ -302,7 +302,7 @@ export default function StationModal({ station, onClose }: Props) {
             <StatPill label="Classic" value={classics} color="text-blue-500" />
 
             <StatPill label={`Avg Fill (${HOUR_OPTIONS.find(o => o.value === hours)?.label})`} value={avgFill != null ? `${avgFill}%` : "\u2014"} color={avgFill == null ? "text-gray-400" : avgFill >= 50 ? "text-green-600" : avgFill >= 10 ? "text-amber-600" : "text-red-500"} />
-            <StatPill label={lastEbike?.days_total ? `Empty By (${lastEbike.days_empty}/${lastEbike.days_total} days)` : "Station Empty By"} value={lastEbike?.avg_time ? lastEbike.avg_time.replace(" ", "") : "\u2014"} color="text-orange-600" title="Avg time ebikes run out and stay empty for 30+ min. Shows how many days this happened out of the last 7 days." />
+            <StatPill label={lastEbike?.avg_time ? `Empty By (${lastEbike.days_empty}/7 days)` : "Station Empty By"} value={lastEbike?.avg_time ? lastEbike.avg_time.replace(" ", "") : "\u2014"} color="text-orange-600" title="Avg time the longest daily ebike depletion begins. Shows how many of the last 7 days had 0 ebikes at this time." />
           </div>
 
         </div>

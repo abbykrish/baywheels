@@ -228,40 +228,64 @@ gbfsApp.get("/api/station-last-ebike/:stationId", async (c) => {
   const sortedDays = [...byDay.keys()].sort().slice(-7);
   const filteredDays = new Map(sortedDays.map((k) => [k, byDay.get(k)!]));
 
-  // For each day, find the first time ebikes hit 0 and stayed <=1 for 30+ min
-  const SUSTAIN_MS = 30 * 60 * 1000;
-  const depletionTimes: number[] = []; // minutes from midnight (Pacific)
+  // Collect all depletion events: times ebikes hit 0 and stayed 0 for 15+ min
+  const SUSTAIN_MS = 10 * 60 * 1000;
+  const numDays = filteredDays.size;
+  const allDepletions: number[] = []; // time-of-day in minutes from midnight (Pacific)
 
   for (const [, snapshots] of filteredDays) {
-    for (let i = 0; i < snapshots.length; i++) {
-      if (snapshots[i].ebikes > 0) continue;
-      // Found a zero — check if it stays <=1 for 30 min
+    let i = 0;
+    while (i < snapshots.length) {
+      if (snapshots[i].ebikes > 0) { i++; continue; }
+      // Found a zero — check if it stays 0 for 15+ min
       const zeroStart = snapshots[i].ts.getTime();
-      let sustained = true;
       let j = i + 1;
-      while (j < snapshots.length && snapshots[j].ts.getTime() - zeroStart < SUSTAIN_MS) {
-        if (snapshots[j].ebikes > 1) { sustained = false; break; }
-        j++;
-      }
-      // Need at least one more snapshot in the window to confirm
-      if (sustained && j > i + 1) {
+      while (j < snapshots.length && snapshots[j].ebikes === 0) j++;
+      const duration = j > i + 1 ? snapshots[j - 1].ts.getTime() - zeroStart : 0;
+      if (duration >= SUSTAIN_MS) {
         const local = new Date(zeroStart - PDT_OFFSET);
-        depletionTimes.push(local.getUTCHours() * 60 + local.getUTCMinutes());
-        break; // only first sustained depletion per day
+        const mins = local.getUTCHours() * 60 + local.getUTCMinutes();
+        if (local.getUTCHours() >= 6) { // skip before 6 AM
+          allDepletions.push(mins);
+        }
       }
+      i = j;
     }
   }
 
-  if (!depletionTimes.length) {
-    return c.json({ avg_time: null, occurrences: 0, days_empty: 0, days_total: filteredDays.size });
+  if (!allDepletions.length) {
+    return c.json({ avg_time: null, occurrences: 0, days_empty: 0, days_total: numDays });
   }
 
-  const avgMin = Math.round(depletionTimes.reduce((a, b) => a + b, 0) / depletionTimes.length);
+  // Bucket depletions by 30-min window, find the most common window
+  const buckets = new Map<number, number[]>(); // bucket key -> list of minute-of-day values
+  for (const mins of allDepletions) {
+    const bucket = Math.floor(mins / 30); // 0 = 0:00-0:29, 1 = 0:30-0:59, etc.
+    if (!buckets.has(bucket)) buckets.set(bucket, []);
+    buckets.get(bucket)!.push(mins);
+  }
+
+  let bestBucket = 0;
+  let bestCount = 0;
+  for (const [bucket, times] of buckets) {
+    if (times.length > bestCount) {
+      bestCount = times.length;
+      bestBucket = bucket;
+    }
+  }
+
+  // Average the actual times within the winning bucket for a precise time
+  const winningTimes = buckets.get(bestBucket)!;
+  const avgMin = Math.round(winningTimes.reduce((a, b) => a + b, 0) / winningTimes.length);
   const h = Math.floor(avgMin / 60);
   const m = avgMin % 60;
   const ampm = h >= 12 ? "PM" : "AM";
-  const hr = h % 12 || 12;
-  const avg_time = `${hr}:${String(m).padStart(2, "0")} ${ampm}`;
+  const hr12 = h % 12 || 12;
+  const avg_time = `${hr12}:${String(m).padStart(2, "0")} ${ampm}`;
 
-  return c.json({ avg_time, occurrences: depletionTimes.length, days_empty: depletionTimes.length, days_total: filteredDays.size });
+  // days_empty = how many days contributed to the winning bucket
+  // (each day can only contribute once per bucket since we track per-day depletions)
+  const daysEmpty = Math.min(bestCount, numDays);
+
+  return c.json({ avg_time, occurrences: allDepletions.length, days_empty: daysEmpty, days_total: numDays });
 });
