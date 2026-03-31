@@ -9,7 +9,7 @@ import Sidebar from "./components/Sidebar";
 import MonthFilter from "./components/MonthFilter";
 import StationModal from "./components/StationModal";
 import WelcomeModal from "./components/WelcomeModal";
-import { getStats, getFlows, getStations, getHourly, getMonths, getLiveStations, getLiveBikes, getLiveMeta, getLiveCoverage, getLiveTrends, getLiveBusiestHour } from "./api";
+import { getStats, getFlows, getStations, getHourly, getMonths, getLiveStations, getLiveBikes, getLiveMeta, getLiveCoverage, getLiveTrends } from "./api";
 
 const LAYERS = ["live", "arcs", "heatmap", "stations"];
 
@@ -37,7 +37,6 @@ export default function App() {
   const [liveMeta, setLiveMeta] = useState(null);
   const [liveCoverage, setLiveCoverage] = useState({ emptiest: [], best: [] });
   const [liveTrends, setLiveTrends] = useState([]);
-  const [busiestHour, setBusiestHour] = useState(null);
   const [highlightedStationId, setHighlightedStationId] = useState(null);
   const [highlightedRoute, setHighlightedRoute] = useState(null);
   const [selectedStation, setSelectedStation] = useState(null);
@@ -94,20 +93,18 @@ export default function App() {
   // Live data fetching + auto-refresh
   const loadLiveData = useCallback(async () => {
     try {
-      const [s, b, m, cov, trends, busiest] = await Promise.all([
+      const [s, b, m, cov, trends] = await Promise.all([
         getLiveStations(),
         getLiveBikes(),
         getLiveMeta(),
         getLiveCoverage(10),
         getLiveTrends(),
-        getLiveBusiestHour(),
       ]);
       setLiveStations(s);
       setLiveBikes(b);
       setLiveMeta(m);
       setLiveCoverage(cov);
       setLiveTrends(trends);
-      setBusiestHour(busiest);
     } catch (e) {
       console.error("Live data fetch error:", e);
     }
@@ -189,7 +186,7 @@ export default function App() {
 
       {/* Mobile backdrop — tap to close sidebar */}
       {sidebarOpen && <div className="md:hidden fixed inset-0 bg-black/20 z-14" onClick={() => setSidebarOpen(false)} />}
-      <Sidebar flows={flows} stations={stations} activeLayer={activeLayer} liveCoverage={liveCoverage} liveTrends={liveTrends} liveStations={liveStations} busiestHour={busiestHour} onHoverStation={setHighlightedStationId} onHoverRoute={setHighlightedRoute} onClickStation={setSelectedStation} sidebarOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} hourly={hourly} months={months} selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} arcCount={arcCount} onArcCountChange={setArcCount} />
+      <Sidebar flows={flows} stations={stations} activeLayer={activeLayer} liveCoverage={liveCoverage} liveTrends={liveTrends} liveStations={liveStations} onHoverStation={setHighlightedStationId} onHoverRoute={setHighlightedRoute} onClickStation={setSelectedStation} sidebarOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} hourly={hourly} months={months} selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} arcCount={arcCount} onArcCountChange={setArcCount} />
       {activeLayer === "live" ? <LiveLegend /> : <Legend activeLayer={activeLayer} />}
       <StationModal station={selectedStation} onClose={() => setSelectedStation(null)} />
       <WelcomeModal />

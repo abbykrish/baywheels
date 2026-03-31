@@ -82,7 +82,10 @@ gbfsApp.get("/api/live/coverage", async (c) => {
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
     .toISOString().replace("T", " ").slice(0, 19);
   let emptyMap = new Map<string, number>();
+  const decommissioned = new Set<string>();
   try {
+    const cutoff2d = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
+      .toISOString().replace("T", " ").slice(0, 19);
     const rows = await query(`
       SELECT station_id,
              count(*) AS total,
@@ -92,6 +95,16 @@ gbfsApp.get("/api/live/coverage", async (c) => {
         AND extract('hour' FROM snapshot_ts) >= 6
       GROUP BY station_id
     `);
+    // Detect stations at 0 bikes for 2+ days straight
+    const deadRows = await query(`
+      SELECT station_id
+      FROM gbfs_station_snapshots
+      WHERE snapshot_ts >= '${cutoff2d}'
+      GROUP BY station_id
+      HAVING max(num_bikes_available) = 0
+    `);
+    for (const r of deadRows) decommissioned.add(String(r.station_id));
+
     for (const r of rows) {
       const total = Number(r.total);
       const zero = Number(r.zero);
@@ -100,7 +113,7 @@ gbfsApp.get("/api/live/coverage", async (c) => {
   } catch {}
 
   const all = stations
-    .filter((s) => s.is_installed && s.capacity > 0)
+    .filter((s) => s.is_installed && s.capacity > 0 && !decommissioned.has(s.station_id))
     .map((s) => {
       const totalBikes = s.num_bikes_available;
       const emptyDocks = s.capacity - totalBikes;
@@ -134,40 +147,6 @@ gbfsApp.get("/api/live/coverage", async (c) => {
   return c.json({ emptiest, best });
 });
 
-// ─── GET /api/live/busiest-hour ──────────────────────────────────────────────
-
-gbfsApp.get("/api/live/busiest-hour", async (c) => {
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    .toISOString().replace("T", " ").slice(0, 19);
-
-  try {
-    const rows = await query(`
-      WITH ordered AS (
-        SELECT
-          station_id,
-          extract('hour' FROM snapshot_ts) AS hour,
-          num_bikes_available AS bikes,
-          lag(num_bikes_available) OVER (PARTITION BY station_id ORDER BY snapshot_ts) AS prev_bikes
-        FROM gbfs_station_snapshots
-        WHERE snapshot_ts >= '${cutoff}'
-          AND extract('hour' FROM snapshot_ts) >= 6
-      )
-      SELECT
-        hour,
-        sum(CASE WHEN prev_bikes - bikes > 0 THEN prev_bikes - bikes ELSE 0 END) AS departures
-      FROM ordered
-      WHERE prev_bikes IS NOT NULL
-      GROUP BY hour
-      ORDER BY departures DESC
-      LIMIT 1
-    `);
-
-    if (!rows.length) return c.json({ hour: null, departures: 0 });
-    return c.json({ hour: Number(rows[0].hour), departures: Number(rows[0].departures) });
-  } catch {
-    return c.json({ hour: null, departures: 0 });
-  }
-});
 
 // ─── GET /api/live/trends ────────────────────────────────────────────────────
 

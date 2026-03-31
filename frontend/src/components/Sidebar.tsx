@@ -420,7 +420,7 @@ function TopRoutesSection({ flows, onHoverRoute }) {
 
 // ─── Main sidebar ────────────────────────────────────────────────────────────
 
-export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation, onHoverRoute, onClickStation, liveStations = [], busiestHour = null, sidebarOpen = false, onClose, hourly = [], months = [], selectedMonth = "all", onMonthChange, arcCount = 200, onArcCountChange }) {
+export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation, onHoverRoute, onClickStation, liveStations = [], sidebarOpen = false, onClose, hourly = [], months = [], selectedMonth = "all", onMonthChange, arcCount = 200, onArcCountChange }) {
   // Look up full live station object by station_id and fire onClickStation
   function handleStationClick(stationId) {
     if (!onClickStation) return;
@@ -465,19 +465,7 @@ export default function Sidebar({ flows, stations, activeLayer, liveCoverage = {
         )}
         {activeLayer === "live" && (
           <>
-            {busiestHour?.hour != null && (
-              <div className="flex items-center justify-between bg-purple-50 rounded-lg px-3 py-2">
-                <div>
-                  <div className="text-[10px] text-gray-400 uppercase tracking-wider">Busiest Hour (24h)</div>
-                  <div className="text-sm font-bold text-purple-600">{formatHour(busiestHour.hour)}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] text-gray-400">Departures</div>
-                  <div className="text-sm font-semibold text-gray-700">{fmt(busiestHour.departures)}</div>
-                </div>
-              </div>
-            )}
-            <EmptiestSection data={liveCoverage.emptiest || []} onHoverStation={onHoverStation} onClickStation={handleStationClick} />
+<EmptiestSection data={liveCoverage.emptiest || []} onHoverStation={onHoverStation} onClickStation={handleStationClick} />
             <Divider />
             <BestCoverageSection data={liveCoverage.best || []} onHoverStation={onHoverStation} onClickStation={handleStationClick} />
             <Divider />
