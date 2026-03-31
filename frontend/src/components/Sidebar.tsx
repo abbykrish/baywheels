@@ -209,7 +209,7 @@ function BestCoverageSection({ data, onHoverStation, onClickStation = null }) {
   return (
     <Section
       label="Best Coverage"
-      description="Stations that spend the least time empty over the last 24 hours."
+      description="Stations that spent the least time empty over the last 24 hours."
     >
       <div className="flex flex-col gap-1.5">
         {visible.map((s, i) => (
@@ -244,7 +244,7 @@ function RecentChangesSection({ data, onHoverStation, onClickStation = null }) {
   return (
     <Section
       label="Recent Changes"
-      description="Stations where bike counts changed between the last two snapshots (every 5 min)."
+      description="Stations where bike counts changed in the last 5 minutes."
     >
       <div className="flex flex-col gap-1.5">
         {data.length === 0 && (

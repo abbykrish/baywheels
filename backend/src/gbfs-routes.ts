@@ -151,18 +151,22 @@ gbfsApp.get("/api/live/coverage", async (c) => {
 // ─── GET /api/live/trends ────────────────────────────────────────────────────
 
 gbfsApp.get("/api/live/trends", async (c) => {
+  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000)
+    .toISOString().replace("T", " ").slice(0, 19);
   const rows = await query(`
-    WITH snapshots AS (
-      SELECT DISTINCT snapshot_ts
+    WITH latest AS (
+      SELECT max(snapshot_ts) AS ts FROM gbfs_station_snapshots
+    ),
+    prev AS (
+      SELECT max(snapshot_ts) AS ts
       FROM gbfs_station_snapshots
-      ORDER BY snapshot_ts DESC
-      LIMIT 2
+      WHERE snapshot_ts <= '${fiveMinAgo}'
     ),
     recent AS (
       SELECT s.station_id, s.num_bikes_available, s.num_ebikes_available, s.num_docks_available, s.snapshot_ts,
-        row_number() OVER (PARTITION BY s.station_id ORDER BY s.snapshot_ts DESC) AS rn
+        CASE WHEN s.snapshot_ts = (SELECT ts FROM latest) THEN 1 ELSE 2 END AS rn
       FROM gbfs_station_snapshots s
-      WHERE s.snapshot_ts IN (SELECT snapshot_ts FROM snapshots)
+      WHERE s.snapshot_ts IN ((SELECT ts FROM latest), (SELECT ts FROM prev))
     )
     SELECT
       cur.station_id,
