@@ -142,8 +142,8 @@ export default function App() {
           ))}
         </div>
 
-        {/* City picker */}
-        <div className="flex gap-1">
+        {/* City picker — desktop only */}
+        <div className="hidden md:flex gap-1">
           {Object.entries(CITIES).map(([key, city]) => (
             <button
               key={key}
