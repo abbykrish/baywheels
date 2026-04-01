@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { parseISO, addMonths, format } from "date-fns";
 import StatsBar from "./components/StatsBar";
-import MapView from "./components/MapView";
+import MapView, { CITIES } from "./components/MapView";
 import HourlyChart from "./components/HourlyChart";
 import Legend from "./components/Legend";
 import LiveLegend from "./components/LiveLegend";
@@ -41,6 +41,7 @@ export default function App() {
   const [highlightedRoute, setHighlightedRoute] = useState(null);
   const [selectedStation, setSelectedStation] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [flyToCity, setFlyToCity] = useState(null);
 
   // Sync active layer to URL query param
   useEffect(() => {
@@ -120,7 +121,7 @@ export default function App() {
   return (
     <div className="w-full h-full relative">
       <StatsBar stats={stats} loading={loading} activeLayer={activeLayer} liveMeta={liveMeta} />
-      <MapView flows={flows} stations={stations} activeLayer={activeLayer} liveStations={liveStations} liveBikes={liveBikes} liveTrends={liveTrends} highlightedStationId={highlightedStationId} highlightedRoute={highlightedRoute} onClickStation={setSelectedStation} />
+      <MapView flows={flows} stations={stations} activeLayer={activeLayer} liveStations={liveStations} liveBikes={liveBikes} liveTrends={liveTrends} highlightedStationId={highlightedStationId} highlightedRoute={highlightedRoute} onClickStation={setSelectedStation} flyToCity={flyToCity} />
 
       {/* Controls panel — desktop: full card, mobile: compact bottom bar */}
       <div className="fixed md:absolute bottom-0 left-0 right-0 md:bottom-6 md:left-6 md:right-auto bg-white/92 backdrop-blur-md md:rounded-xl border-t md:border border-black/8 shadow-md p-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:p-4 md:w-[320px] flex flex-col gap-2 md:gap-3 z-10">
@@ -137,6 +138,19 @@ export default function App() {
                 }`}
             >
               {l === "live" ? "Live" : l === "arcs" ? "Historical" : l === "heatmap" ? "Heat" : "Stations"}
+            </button>
+          ))}
+        </div>
+
+        {/* City picker */}
+        <div className="flex gap-1">
+          {Object.entries(CITIES).map(([key, city]) => (
+            <button
+              key={key}
+              onClick={() => setFlyToCity((prev) => prev === key ? key + "_" : key)}
+              className="flex-1 py-1.5 text-[11px] rounded-md border border-black/10 bg-transparent text-gray-500 cursor-pointer hover:border-purple-600/40 hover:text-purple-600 transition-all"
+            >
+              {city.label}
             </button>
           ))}
         </div>
