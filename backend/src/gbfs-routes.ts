@@ -12,10 +12,30 @@ let metaCache: { data: any; ts: number } | null = null;
 let trendsCache: { data: any; ts: number } | null = null;
 const CACHE_TTL = 60_000;
 
+function refreshCounts(cached: any[]) {
+  const fresh = getLatestStations();
+  const map = new Map(fresh.map((s) => [s.station_id, s]));
+  return cached.map((s) => {
+    const live = map.get(s.station_id);
+    if (!live) return s;
+    const totalBikes = live.num_bikes_available;
+    return {
+      ...s,
+      bikes: totalBikes,
+      ebikes: live.num_ebikes_available,
+      docks_available: live.num_docks_available,
+      fill_pct: s.capacity > 0 ? Math.round((totalBikes / s.capacity) * 100) : 0,
+    };
+  });
+}
+
 async function getCachedCoverage(limit: number) {
   if (coverageCache && Date.now() - coverageCache.ts < CACHE_TTL) {
     const d = coverageCache.data;
-    return { emptiest: d.emptiest.slice(0, limit), best: d.best.slice(0, limit) };
+    return {
+      emptiest: refreshCounts(d.emptiest.slice(0, limit)),
+      best: refreshCounts(d.best.slice(0, limit)),
+    };
   }
 
   const stations = getLatestStations();

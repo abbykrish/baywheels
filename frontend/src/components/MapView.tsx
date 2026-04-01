@@ -1,15 +1,22 @@
-import React, { useMemo } from "react";
-import { Map } from "react-map-gl/maplibre";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
+import { Map as MapGL } from "react-map-gl/maplibre";
 import DeckGL from "@deck.gl/react";
 import { ArcLayer, ScatterplotLayer } from "@deck.gl/layers";
 import { HeatmapLayer } from "@deck.gl/aggregation-layers";
+import { FlyToInterpolator } from "@deck.gl/core";
+
+const CITIES = {
+  sf: { label: "SF", longitude: -122.42, latitude: 37.775, zoom: 13 },
+  eastbay: { label: "East Bay", longitude: -122.27, latitude: 37.805, zoom: 13 },
+  sanjose: { label: "San Jose", longitude: -121.89, latitude: 37.335, zoom: 13 },
+};
 
 const INITIAL_VIEW = {
   longitude: -122.42,
   latitude: 37.775,
-  zoom: 12.5,
-  pitch: 45,
-  bearing: -10,
+  zoom: 13,
+  pitch: 0,
+  bearing: 0,
 };
 
 const MAP_STYLE =
@@ -50,7 +57,26 @@ function ebikeFillColor(station) {
   return [220, 38, 38, 200];                       // red
 }
 
-export default function MapView({ flows, stations, activeLayer, liveStations = [], liveBikes = [], liveTrends = [], highlightedStationId = null, highlightedRoute = null, onClickStation = null }) {
+export { CITIES };
+
+export default function MapView({ flows, stations, activeLayer, liveStations = [], liveBikes = [], liveTrends = [], highlightedStationId = null, highlightedRoute = null, onClickStation = null, slaData = null, flyToCity = null }) {
+  const [viewState, setViewState] = useState(INITIAL_VIEW);
+
+  useEffect(() => {
+    if (!flyToCity) return;
+    const key = flyToCity.replace(/_$/, "");
+    const c = CITIES[key];
+    if (!c) return;
+    setViewState((prev) => ({
+      ...prev,
+      longitude: c.longitude,
+      latitude: c.latitude,
+      zoom: c.zoom,
+      transitionDuration: 800,
+      transitionInterpolator: new FlyToInterpolator(),
+    }));
+  }, [flyToCity]);
+
   const maxCount = useMemo(() => {
     if (!flows.length) return 1;
     return Math.max(...flows.map((f) => f.count));
@@ -133,10 +159,55 @@ export default function MapView({ flows, stations, activeLayer, liveStations = [
     }
 
     if (activeLayer === "live") {
+      // Trend heatmaps: soft regional shading for gaining/losing areas
+      const gaining = liveTrends.filter((t) => t.bike_delta > 0);
+      const losing = liveTrends.filter((t) => t.bike_delta < 0);
+
+      if (gaining.length > 0) {
+        result.push(
+          new HeatmapLayer({
+            id: "trend-gaining",
+            data: gaining,
+            getPosition: (d) => [d.lon, d.lat],
+            getWeight: (d) => Math.abs(d.bike_delta),
+            radiusPixels: 70,
+            intensity: 1.2,
+            threshold: 0.04,
+            colorRange: [
+              [34, 197, 94, 0], [34, 197, 94, 60], [34, 197, 94, 110],
+            ],
+          })
+        );
+      }
+      if (losing.length > 0) {
+        result.push(
+          new HeatmapLayer({
+            id: "trend-losing",
+            data: losing,
+            getPosition: (d) => [d.lon, d.lat],
+            getWeight: (d) => Math.abs(d.bike_delta),
+            radiusPixels: 70,
+            intensity: 1.2,
+            threshold: 0.04,
+            colorRange: [
+              [220, 38, 38, 0], [220, 38, 38, 60], [220, 38, 38, 110],
+            ],
+          })
+        );
+      }
+
+      // Merge trend deltas into station data for tooltips
+      const trendMap = new Map();
+      for (const t of liveTrends) trendMap.set(t.station_id, t);
+      const stationsWithTrends = liveStations.map((s) => {
+        const t = trendMap.get(s.station_id);
+        return t ? { ...s, bike_delta: t.bike_delta, ebike_delta: t.ebike_delta } : s;
+      });
+
       result.push(
         new ScatterplotLayer({
           id: "live-stations",
-          data: liveStations,
+          data: stationsWithTrends,
           getPosition: (d) => [d.lon, d.lat],
           getRadius: (d) => 25 + Math.sqrt(d.capacity || 1) * 8,
           getFillColor: (d) => ebikeFillColor(d),
@@ -160,22 +231,62 @@ export default function MapView({ flows, stations, activeLayer, liveStations = [
           pickable: true,
         })
       );
+    }
 
-      // Trend indicators: colored ring around stations that recently changed
-      if (liveTrends.length > 0) {
+    if (activeLayer === "sla") {
+      // Show all stations as gray base
+      result.push(
+        new ScatterplotLayer({
+          id: "sla-stations-base",
+          data: liveStations,
+          getPosition: (d) => [d.lon, d.lat],
+          getRadius: 30,
+          getFillColor: [180, 180, 180, 80],
+          radiusMinPixels: 3,
+          radiusMaxPixels: 12,
+          pickable: true,
+          stroked: true,
+          getLineColor: [0, 0, 0, 20],
+          lineWidthMinPixels: 1,
+        })
+      );
+
+      // Distribution violations: red (empty) or orange (full) dots
+      const distViolations = slaData?.distribution?.violations || [];
+      if (distViolations.length > 0) {
         result.push(
           new ScatterplotLayer({
-            id: "live-trends",
-            data: liveTrends,
+            id: "sla-distribution",
+            data: distViolations,
             getPosition: (d) => [d.lon, d.lat],
-            getRadius: 150,
-            getFillColor: [0, 0, 0, 0],
-            radiusMinPixels: 12,
-            radiusMaxPixels: 28,
-            stroked: true,
-            getLineColor: (d) => d.bike_delta > 0 ? [34, 197, 94, 200] : [220, 38, 38, 200],
-            lineWidthMinPixels: 2,
+            getRadius: 60,
+            getFillColor: (d) => d.type === "empty" ? [220, 38, 38, 200] : [245, 158, 11, 200],
+            radiusMinPixels: 6,
+            radiusMaxPixels: 16,
             pickable: true,
+            stroked: true,
+            getLineColor: [0, 0, 0, 40],
+            lineWidthMinPixels: 1,
+          })
+        );
+      }
+
+      // Cluster outage zones: large transparent red circles
+      const clusterViolations = slaData?.clusters?.clusters || [];
+      if (clusterViolations.length > 0) {
+        result.push(
+          new ScatterplotLayer({
+            id: "sla-clusters",
+            data: clusterViolations,
+            getPosition: (d) => [d.center_lon, d.center_lat],
+            getRadius: 400,
+            getFillColor: (d) => d.violations.some((v) => v.ended_at === null) ? [220, 38, 38, 40] : [245, 158, 11, 30],
+            radiusMinPixels: 30,
+            radiusMaxPixels: 60,
+            pickable: true,
+            stroked: true,
+            getLineColor: (d) => d.violations.some((v) => v.ended_at === null) ? [220, 38, 38, 180] : [245, 158, 11, 120],
+            lineWidthMinPixels: 2,
           })
         );
       }
@@ -213,7 +324,7 @@ export default function MapView({ flows, stations, activeLayer, liveStations = [
     }
 
     return result;
-  }, [flows, stations, activeLayer, maxCount, liveStations, liveBikes, liveTrends, highlightedStationId, highlightedRoute]);
+  }, [flows, stations, activeLayer, maxCount, liveStations, liveBikes, liveTrends, highlightedStationId, highlightedRoute, slaData]);
 
   function handleClick(info) {
     if (!info.object || !onClickStation) return;
@@ -237,7 +348,8 @@ export default function MapView({ flows, stations, activeLayer, liveStations = [
 
   return (
     <DeckGL
-      initialViewState={INITIAL_VIEW}
+      viewState={viewState}
+      onViewStateChange={({ viewState: vs }) => setViewState(vs)}
       controller={true}
       layers={layers}
       getTooltip={getTooltip}
@@ -245,7 +357,7 @@ export default function MapView({ flows, stations, activeLayer, liveStations = [
       getCursor={getCursor}
       style={{ position: "absolute", inset: 0 }}
     >
-      <Map mapStyle={MAP_STYLE} />
+      <MapGL mapStyle={MAP_STYLE} />
     </DeckGL>
   );
 }
@@ -260,19 +372,12 @@ function getTooltip({ object }) {
   }
   // Live station tooltip
   if (object.station_id && object.num_ebikes_available != null) {
-    return {
-      html: `<b>${object.name}</b><br/>Ebikes: ${object.num_ebikes_available}<br/>Bikes: ${object.num_bikes_available}<br/>Docks: ${object.num_docks_available}`,
-      style: TOOLTIP_STYLE,
-    };
-  }
-  // Trend tooltip
-  if (object.bike_delta != null && object.station_name) {
-    const bSign = object.bike_delta > 0 ? "+" : "";
-    const eSign = object.ebike_delta > 0 ? "+" : "";
-    return {
-      html: `<b>${object.station_name}</b><br/>Ebikes: ${object.ebikes_now} (${eSign}${object.ebike_delta})<br/>Bikes: ${object.bikes_now} (${bSign}${object.bike_delta})<br/>Docks: ${object.docks_now ?? "\u2014"}<br/><span style="color:#999;font-style:italic">Changed in last 5 min</span>`,
-      style: TOOLTIP_STYLE,
-    };
+    const hasTrend = object.bike_delta != null;
+    const bSign = hasTrend && object.bike_delta > 0 ? "+" : "";
+    const eSign = hasTrend && object.ebike_delta > 0 ? "+" : "";
+    let html = `<b>${object.name}</b><br/>Ebikes: ${object.num_ebikes_available}${hasTrend ? ` (${eSign}${object.ebike_delta})` : ""}<br/>Bikes: ${object.num_bikes_available}${hasTrend ? ` (${bSign}${object.bike_delta})` : ""}<br/>Docks: ${object.num_docks_available}`;
+    if (hasTrend) html += `<br/><span style="color:#999;font-style:italic">Changed in last 5 min</span>`;
+    return { html, style: TOOLTIP_STYLE };
   }
   // Live free bike tooltip
   if (object.bike_id) {
