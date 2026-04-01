@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { parseISO, addMonths, format } from "date-fns";
 import StatsBar from "./components/StatsBar";
-import MapView from "./components/MapView";
+import MapView, { CITIES } from "./components/MapView";
 import HourlyChart from "./components/HourlyChart";
 import Legend from "./components/Legend";
 import LiveLegend from "./components/LiveLegend";
@@ -9,9 +9,9 @@ import Sidebar from "./components/Sidebar";
 import MonthFilter from "./components/MonthFilter";
 import StationModal from "./components/StationModal";
 import WelcomeModal from "./components/WelcomeModal";
-import { getStats, getFlows, getStations, getHourly, getMonths, getLiveStations, getLiveBikes, getLiveMeta, getLiveCoverage, getLiveTrends } from "./api";
+import { getStats, getFlows, getStations, getHourly, getMonths, getLiveStations, getLiveBikes, getLiveMeta, getLiveCoverage, getLiveTrends, getSLAClusters, getSLADistribution, getSLAFleet } from "./api";
 
-const LAYERS = ["live", "arcs", "heatmap", "stations"];
+const LAYERS = ["live", "sla", "arcs", "heatmap", "stations"];
 
 export default function App() {
   const [stats, setStats] = useState(null);
@@ -41,6 +41,10 @@ export default function App() {
   const [highlightedRoute, setHighlightedRoute] = useState(null);
   const [selectedStation, setSelectedStation] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [flyToCity, setFlyToCity] = useState(null);
+
+  // SLA layer state
+  const [slaData, setSlaData] = useState({ clusters: null, distribution: null, fleet: null });
 
   // Sync active layer to URL query param
   useEffect(() => {
@@ -117,10 +121,31 @@ export default function App() {
     return () => clearInterval(interval);
   }, [activeLayer, loadLiveData]);
 
+  // SLA data fetching + auto-refresh
+  const loadSlaData = useCallback(async () => {
+    try {
+      const [clusters, distribution, fleet] = await Promise.all([
+        getSLAClusters(),
+        getSLADistribution(),
+        getSLAFleet(),
+      ]);
+      setSlaData({ clusters, distribution, fleet });
+    } catch (e) {
+      console.error("SLA data fetch error:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeLayer !== "sla") return;
+    loadSlaData();
+    const interval = setInterval(loadSlaData, 5 * 60_000);
+    return () => clearInterval(interval);
+  }, [activeLayer, loadSlaData]);
+
   return (
     <div className="w-full h-full relative">
       <StatsBar stats={stats} loading={loading} activeLayer={activeLayer} liveMeta={liveMeta} />
-      <MapView flows={flows} stations={stations} activeLayer={activeLayer} liveStations={liveStations} liveBikes={liveBikes} liveTrends={liveTrends} highlightedStationId={highlightedStationId} highlightedRoute={highlightedRoute} onClickStation={setSelectedStation} />
+      <MapView flows={flows} stations={stations} activeLayer={activeLayer} liveStations={liveStations} liveBikes={liveBikes} liveTrends={liveTrends} highlightedStationId={highlightedStationId} highlightedRoute={highlightedRoute} onClickStation={setSelectedStation} slaData={slaData} flyToCity={flyToCity} />
 
       {/* Controls panel — desktop: full card, mobile: compact bottom bar */}
       <div className="fixed md:absolute bottom-0 left-0 right-0 md:bottom-6 md:left-6 md:right-auto bg-white/92 backdrop-blur-md md:rounded-xl border-t md:border border-black/8 shadow-md p-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] md:p-4 md:w-[320px] flex flex-col gap-2 md:gap-3 z-10">
@@ -136,14 +161,27 @@ export default function App() {
                   : "border-black/10 bg-transparent text-gray-500"
                 }`}
             >
-              {l === "live" ? "Live" : l === "arcs" ? "Historical" : l === "heatmap" ? "Heat" : "Stations"}
+              {l === "live" ? "Live" : l === "sla" ? "SLA" : l === "arcs" ? "Historical" : l === "heatmap" ? "Heat" : "Stations"}
+            </button>
+          ))}
+        </div>
+
+        {/* City picker */}
+        <div className="flex gap-1">
+          {Object.entries(CITIES).map(([key, city]) => (
+            <button
+              key={key}
+              onClick={() => setFlyToCity((prev) => prev === key ? key + "_" : key)}
+              className="flex-1 py-1.5 text-[11px] rounded-md border border-black/10 bg-transparent text-gray-500 cursor-pointer hover:border-purple-600/40 hover:text-purple-600 transition-all"
+            >
+              {city.label}
             </button>
           ))}
         </div>
 
         {/* Desktop-only: month filter, arc count, hourly chart */}
         <div className="hidden md:flex md:flex-col md:gap-3">
-          {activeLayer !== "live" && (
+          {activeLayer !== "live" && activeLayer !== "sla" && (
             <MonthFilter
               months={months}
               selected={selectedMonth}
@@ -172,7 +210,7 @@ export default function App() {
             </div>
           )}
 
-          {activeLayer !== "live" && <HourlyChart data={hourly} />}
+          {activeLayer !== "live" && activeLayer !== "sla" && <HourlyChart data={hourly} />}
         </div>
       </div>
 
@@ -186,7 +224,7 @@ export default function App() {
 
       {/* Mobile backdrop — tap to close sidebar */}
       {sidebarOpen && <div className="md:hidden fixed inset-0 bg-black/20 z-14" onClick={() => setSidebarOpen(false)} />}
-      <Sidebar flows={flows} stations={stations} activeLayer={activeLayer} liveCoverage={liveCoverage} liveTrends={liveTrends} liveStations={liveStations} onHoverStation={setHighlightedStationId} onHoverRoute={setHighlightedRoute} onClickStation={setSelectedStation} sidebarOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} hourly={hourly} months={months} selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} arcCount={arcCount} onArcCountChange={setArcCount} />
+      <Sidebar flows={flows} stations={stations} activeLayer={activeLayer} liveCoverage={liveCoverage} liveTrends={liveTrends} liveStations={liveStations} slaData={slaData} onHoverStation={setHighlightedStationId} onHoverRoute={setHighlightedRoute} onClickStation={setSelectedStation} sidebarOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} hourly={hourly} months={months} selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} arcCount={arcCount} onArcCountChange={setArcCount} />
       {activeLayer === "live" ? <LiveLegend /> : <Legend activeLayer={activeLayer} />}
       <StationModal station={selectedStation} onClose={() => setSelectedStation(null)} />
       <WelcomeModal />

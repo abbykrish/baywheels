@@ -428,9 +428,195 @@ function TopRoutesSection({ flows, onHoverRoute }) {
   );
 }
 
+// ─── SLA sections ───────────────────────────────────────────────────────────
+
+function formatDuration(mins) {
+  if (mins >= 60) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+  return `${mins}m`;
+}
+
+function formatSlaTime(ts) {
+  if (!ts) return "Ongoing";
+  try {
+    const d = new Date(ts.replace(" ", "T") + "Z");
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch { return ts; }
+}
+
+function SLASummarySection({ slaData }) {
+  const clusters = slaData.clusters?.summary;
+  const dist = slaData.distribution?.summary;
+  const fleet = slaData.fleet?.summary;
+  const totalPenalty = (clusters?.total_penalty || 0);
+  const totalViolations = (clusters?.total_violations || 0) + (dist?.total_violations || 0) + (fleet?.days_in_violation || 0);
+  const activeViolations = (clusters?.active_violations || 0) + (dist?.active_violations || 0);
+
+  return (
+    <Section label="SLA Summary (24h)" description="Contract compliance based on Lyft's Bay Wheels agreement with MTC.">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="bg-red-50 rounded-lg px-3 py-2 text-center">
+          <div className="text-lg font-bold text-red-600">{totalViolations}</div>
+          <div className="text-[9px] text-gray-400 uppercase">Violations</div>
+        </div>
+        <div className="bg-red-50 rounded-lg px-3 py-2 text-center">
+          <div className="text-lg font-bold text-red-600">{activeViolations}</div>
+          <div className="text-[9px] text-gray-400 uppercase">Active Now</div>
+        </div>
+        <div className="bg-orange-50 rounded-lg px-3 py-2 text-center">
+          <div className="text-lg font-bold text-orange-600">${totalPenalty}</div>
+          <div className="text-[9px] text-gray-400 uppercase">Cluster Penalties</div>
+        </div>
+        <div className={`rounded-lg px-3 py-2 text-center ${fleet?.current_pct >= 90 ? "bg-green-50" : "bg-red-50"}`}>
+          <div className={`text-lg font-bold ${fleet?.current_pct >= 90 ? "text-green-600" : "text-red-600"}`}>{fleet?.current_pct ?? "--"}%</div>
+          <div className="text-[9px] text-gray-400 uppercase">Fleet Avail.</div>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function ClusterOutageSection({ data }) {
+  const [expanded, setExpanded] = useState(false);
+  const clusters = data?.clusters || [];
+  const visible = expanded ? clusters : clusters.slice(0, 5);
+
+  return (
+    <Section
+      label={`Cluster Outages (${clusters.length})`}
+      description="KPI #12: No cluster fully empty of bikes or docks for 10+ min during 6AM-10PM. Penalty: $1/min after 10 min."
+    >
+      <div className="flex flex-col gap-2">
+        {clusters.length === 0 && (
+          <div className="text-xs text-green-600 text-center py-2">No cluster outages in last 24h</div>
+        )}
+        {visible.map((cluster) => (
+          <div key={cluster.key} className="bg-red-50/50 rounded-lg px-3 py-2">
+            <div className="text-[11px] font-medium text-gray-900 truncate" title={cluster.station_names.join(", ")}>
+              {cluster.station_names[0]} +{cluster.station_ids.length - 1}
+            </div>
+            <div className="flex flex-col gap-0.5 mt-1">
+              {cluster.violations.slice(-3).map((v, i) => (
+                <div key={i} className="flex items-center gap-2 text-[10px]">
+                  <span className={`font-semibold ${v.ended_at === null ? "text-red-600" : "text-orange-600"}`}>
+                    {v.ended_at === null ? "ACTIVE" : formatDuration(v.duration_minutes)}
+                  </span>
+                  <span className="text-gray-500">{formatSlaTime(v.started_at)}</span>
+                  <span className="text-gray-400">{v.type === "no_bikes" ? "no bikes" : "no docks"}</span>
+                  <span className="text-red-500 ml-auto">${v.penalty_dollars}</span>
+                </div>
+              ))}
+            </div>
+            {cluster.violations.length > 3 && (
+              <div className="text-[9px] text-gray-400 mt-1">+{cluster.violations.length - 3} more violations</div>
+            )}
+          </div>
+        ))}
+        {clusters.length > 5 && (
+          <button onClick={() => setExpanded(!expanded)} className="text-[10px] text-purple-600 font-medium bg-transparent border-none cursor-pointer py-1 hover:underline">
+            {expanded ? "Show less" : `Show all ${clusters.length}`}
+          </button>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+function DistributionSection({ data }) {
+  const [expanded, setExpanded] = useState(false);
+  const violations = data?.violations || [];
+  const visible = expanded ? violations : violations.slice(0, 5);
+
+  return (
+    <Section
+      label={`Distribution Violations (${violations.length})`}
+      description="No station shall be completely empty or full for 3+ hours during 6AM-10PM."
+    >
+      <div className="flex flex-col gap-1.5">
+        {violations.length === 0 && (
+          <div className="text-xs text-green-600 text-center py-2">No distribution violations in last 24h</div>
+        )}
+        {visible.map((v, i) => (
+          <div key={i} className="flex items-center gap-2 hover:bg-gray-50 rounded -mx-1 px-1 py-0.5">
+            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${v.type === "empty" ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>
+              {v.type === "empty" ? "EMPTY" : "FULL"}
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[11px] text-gray-900 truncate" title={v.station_name}>{v.station_name}</div>
+              <div className="text-[9px] text-gray-400">
+                {formatDuration(v.duration_minutes)} &middot; {formatSlaTime(v.started_at)}
+                {v.ended_at === null && <span className="text-red-500 font-semibold ml-1">ACTIVE</span>}
+              </div>
+            </div>
+          </div>
+        ))}
+        {violations.length > 5 && (
+          <button onClick={() => setExpanded(!expanded)} className="text-[10px] text-purple-600 font-medium bg-transparent border-none cursor-pointer py-1 hover:underline">
+            {expanded ? "Show less" : `Show all ${violations.length}`}
+          </button>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+function FleetAvailabilitySection({ data }) {
+  const daily = data?.daily || [];
+  const summary = data?.summary;
+  if (!daily.length) return null;
+
+  const W = 300, H = 80;
+  const PAD = { left: 30, right: 8, top: 8, bottom: 16 };
+  const cw = W - PAD.left - PAD.right;
+  const ch = H - PAD.top - PAD.bottom;
+  const barW = Math.max(8, cw / daily.length - 2);
+
+  return (
+    <Section
+      label="Fleet Availability"
+      description="At least 90% of bikes must be operational and on-street. Measured daily 11AM-3PM."
+    >
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2 text-[10px]">
+          <span className="text-gray-400">Current:</span>
+          <span className={`font-semibold ${summary?.current_pct >= 90 ? "text-green-600" : "text-red-600"}`}>
+            {summary?.current_pct}% ({summary?.current_available}/{summary?.current_total} bikes)
+          </span>
+        </div>
+        <svg width={W} height={H} className="w-full" viewBox={`0 0 ${W} ${H}`}>
+          {/* 90% threshold line */}
+          <line x1={PAD.left} x2={W - PAD.right} y1={PAD.top + ch * 0.1} y2={PAD.top + ch * 0.1} stroke="#ef4444" strokeWidth="1" strokeDasharray="4,3" />
+          <text x={PAD.left - 4} y={PAD.top + ch * 0.1 + 3} fill="#ef4444" fontSize="8" textAnchor="end">90%</text>
+
+          {daily.map((d, i) => {
+            const x = PAD.left + (i / daily.length) * cw;
+            const pct = Math.min(d.pct_available, 100);
+            const barH = (pct / 100) * ch;
+            return (
+              <g key={i}>
+                <rect x={x} y={PAD.top + ch - barH} width={barW} height={barH} rx={2}
+                  fill={d.in_violation ? "#ef4444" : "#22c55e"} opacity={0.7} />
+                <text x={x + barW / 2} y={H - 3} fill="#9ca3af" fontSize="7" textAnchor="middle">
+                  {new Date(d.date).toLocaleDateString([], { weekday: "short" }).slice(0, 2)}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+        {summary?.days_in_violation > 0 && (
+          <div className="text-[10px] text-red-500">{summary.days_in_violation} of {summary.days_measured} days below 90% threshold</div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
 // ─── Main sidebar ────────────────────────────────────────────────────────────
 
-export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation, onHoverRoute, onClickStation, liveStations = [], sidebarOpen = false, onClose, hourly = [], months = [], selectedMonth = "all", onMonthChange, arcCount = 200, onArcCountChange }) {
+export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation, onHoverRoute, onClickStation, liveStations = [], slaData = { clusters: null, distribution: null, fleet: null }, sidebarOpen = false, onClose, hourly = [], months = [], selectedMonth = "all", onMonthChange, arcCount = 200, onArcCountChange }) {
   // Look up full live station object by station_id and fire onClickStation
   function handleStationClick(stationId) {
     if (!onClickStation) return;
@@ -446,7 +632,7 @@ export default function Sidebar({ flows, stations, activeLayer, liveCoverage = {
       </div>
       <div className="flex-1 overflow-y-auto p-4 pt-2 md:pt-4 flex flex-col gap-5">
         {/* Mobile-only: month filter + arc count */}
-        {activeLayer !== "live" && (
+        {activeLayer !== "live" && activeLayer !== "sla" && (
           <div className="md:hidden flex flex-col gap-3">
             <MonthFilter months={months} selected={selectedMonth} onChange={onMonthChange} />
             {activeLayer === "arcs" && (
@@ -482,7 +668,18 @@ export default function Sidebar({ flows, stations, activeLayer, liveCoverage = {
             <RecentChangesSection data={liveTrends} onHoverStation={onHoverStation} onClickStation={handleStationClick} />
           </>
         )}
-        {activeLayer !== "live" && (
+        {activeLayer === "sla" && (
+          <>
+            <SLASummarySection slaData={slaData} />
+            <Divider />
+            <ClusterOutageSection data={slaData.clusters} />
+            <Divider />
+            <DistributionSection data={slaData.distribution} />
+            <Divider />
+            <FleetAvailabilitySection data={slaData.fleet} />
+          </>
+        )}
+        {activeLayer !== "live" && activeLayer !== "sla" && (
           <>
             <RouteLookupSection />
             <Divider />

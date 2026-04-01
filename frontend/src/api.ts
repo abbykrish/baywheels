@@ -81,6 +81,20 @@ export function getStationHistory(stationId, hours = 24) {
   return fetchJSON(`/station-history/${encodeURIComponent(stationId)}?${params}`);
 }
 
+// ─── SLA endpoints ─────────────────────────────────────────────────────────
+
+export function getSLAClusters() {
+  return fetchJSON("/sla/clusters");
+}
+
+export function getSLADistribution() {
+  return fetchJSON("/sla/distribution");
+}
+
+export function getSLAFleet() {
+  return fetchJSON("/sla/fleet");
+}
+
 export function getStationLastEbike(stationId) {
   return fetchJSON(`/station-last-ebike/${encodeURIComponent(stationId)}`);
 }
