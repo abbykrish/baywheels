@@ -26,18 +26,6 @@ export default function LiveLegend() {
           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: "rgb(59, 130, 246)" }} />
           <span className="text-gray-600">Loose bike</span>
         </div>
-        <div className="h-px bg-black/8 my-1" />
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Recent Activity</div>
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-3 rounded" style={{ background: "radial-gradient(circle, rgba(34,197,94,0.5), rgba(34,197,94,0))" }} />
-            <span className="text-gray-600">Gaining bikes</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-3 rounded" style={{ background: "radial-gradient(circle, rgba(220,38,38,0.5), rgba(220,38,38,0))" }} />
-            <span className="text-gray-600">Losing bikes</span>
-          </div>
-        </div>
       </div>
 
       {/* Mobile: compact horizontal strip */}

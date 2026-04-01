@@ -5,6 +5,15 @@ import { ensureRetentionTables } from "./gbfs-retention.js";
 
 export const gbfsApp = new Hono();
 
+// ─── Station exclusions ─────────────────────────────────────────────────────
+
+function isExcludedStation(s: { name: string; is_installed: boolean; capacity: number; station_id: string }, decommissioned: Set<string>): boolean {
+  if (!s.is_installed || s.capacity <= 0) return true;
+  if (decommissioned.has(s.station_id)) return true;
+  if (s.name.toLowerCase().includes("virtual")) return true;
+  return false;
+}
+
 // ─── Cached heavy queries (recomputed at most once per minute) ──────────────
 
 let coverageCache: { data: any; ts: number } | null = null;
@@ -55,7 +64,7 @@ async function getCachedCoverage(limit: number) {
                sum(CASE WHEN num_bikes_available = 0 THEN 1 ELSE 0 END) AS zero
         FROM gbfs_station_snapshots
         WHERE snapshot_ts >= '${cutoff}'
-          AND extract('hour' FROM snapshot_ts) >= 6
+          AND extract('hour' FROM snapshot_ts - INTERVAL '7 hours') >= 6
         GROUP BY station_id
       `),
       query(`
@@ -76,7 +85,7 @@ async function getCachedCoverage(limit: number) {
   } catch {}
 
   const all = stations
-    .filter((s) => s.is_installed && s.capacity > 0 && !decommissioned.has(s.station_id))
+    .filter((s) => !isExcludedStation(s, decommissioned))
     .map((s) => {
       const totalBikes = s.num_bikes_available;
       const emptyDocks = s.capacity - totalBikes;

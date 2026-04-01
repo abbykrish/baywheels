@@ -159,43 +159,6 @@ export default function MapView({ flows, stations, activeLayer, liveStations = [
     }
 
     if (activeLayer === "live") {
-      // Trend heatmaps: soft regional shading for gaining/losing areas
-      const gaining = liveTrends.filter((t) => t.bike_delta > 0);
-      const losing = liveTrends.filter((t) => t.bike_delta < 0);
-
-      if (gaining.length > 0) {
-        result.push(
-          new HeatmapLayer({
-            id: "trend-gaining",
-            data: gaining,
-            getPosition: (d) => [d.lon, d.lat],
-            getWeight: (d) => Math.abs(d.bike_delta),
-            radiusPixels: 70,
-            intensity: 1.2,
-            threshold: 0.04,
-            colorRange: [
-              [34, 197, 94, 0], [34, 197, 94, 60], [34, 197, 94, 110],
-            ],
-          })
-        );
-      }
-      if (losing.length > 0) {
-        result.push(
-          new HeatmapLayer({
-            id: "trend-losing",
-            data: losing,
-            getPosition: (d) => [d.lon, d.lat],
-            getWeight: (d) => Math.abs(d.bike_delta),
-            radiusPixels: 70,
-            intensity: 1.2,
-            threshold: 0.04,
-            colorRange: [
-              [220, 38, 38, 0], [220, 38, 38, 60], [220, 38, 38, 110],
-            ],
-          })
-        );
-      }
-
       // Merge trend deltas into station data for tooltips
       const trendMap = new Map();
       for (const t of liveTrends) trendMap.set(t.station_id, t);
@@ -231,6 +194,7 @@ export default function MapView({ flows, stations, activeLayer, liveStations = [
           pickable: true,
         })
       );
+
     }
 
     // Unified highlight ring for any hovered station
