@@ -277,7 +277,9 @@ function TrendRow({ t, onHoverStation, onClickStation }) {
   );
 }
 
-function RecentChangesSection({ data, onHoverStation, onClickStation = null }) {
+const TREND_WINDOWS = [5, 15, 30];
+
+function RecentChangesSection({ data, onHoverStation, onClickStation = null, trendMinutes = 5, onTrendMinutesChange }) {
   const [gainExpanded, setGainExpanded] = useState(false);
   const [lossExpanded, setLossExpanded] = useState(false);
   const gaining = data.filter((t) => t.bike_delta > 0).sort((a, b) => b.bike_delta - a.bike_delta);
@@ -287,8 +289,23 @@ function RecentChangesSection({ data, onHoverStation, onClickStation = null }) {
   return (
     <Section
       label="Recent Changes"
-      description="Stations where bike counts changed in the last 5 minutes."
+      description={`Stations where bike counts changed in the last ${trendMinutes} minutes.`}
     >
+      <div className="flex gap-1 mb-2">
+        {TREND_WINDOWS.map((m) => (
+          <button
+            key={m}
+            onClick={() => onTrendMinutesChange?.(m)}
+            className={`flex-1 py-1 text-[10px] rounded-md border cursor-pointer transition-all ${
+              trendMinutes === m
+                ? "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold"
+                : "border-black/10 bg-transparent text-gray-500"
+            }`}
+          >
+            {m}m
+          </button>
+        ))}
+      </div>
       <div className="flex flex-col gap-1.5">
         {data.length === 0 && (
           <div className="text-xs text-gray-400 text-center py-2">Need 2+ snapshots to show trends.</div>
@@ -448,7 +465,7 @@ function TopRoutesSection({ flows, onHoverRoute }) {
 
 // ─── Main sidebar ────────────────────────────────────────────────────────────
 
-export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation, onHoverRoute, onClickStation, liveStations = [], sidebarOpen = false, onClose, hourly = [], months = [], selectedMonth = "all", onMonthChange, arcCount = 200, onArcCountChange }) {
+export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation, onHoverRoute, onClickStation, liveStations = [], trendMinutes = 5, onTrendMinutesChange, sidebarOpen = false, onClose, hourly = [], months = [], selectedMonth = "all", onMonthChange, arcCount = 200, onArcCountChange }) {
   // Look up full live station object by station_id and fire onClickStation
   function handleStationClick(stationId) {
     if (!onClickStation) return;
@@ -493,7 +510,7 @@ export default function Sidebar({ flows, stations, activeLayer, liveCoverage = {
         )}
         {activeLayer === "live" && (
           <>
-            <RecentChangesSection data={liveTrends} onHoverStation={onHoverStation} onClickStation={handleStationClick} />
+            <RecentChangesSection data={liveTrends} onHoverStation={onHoverStation} onClickStation={handleStationClick} trendMinutes={trendMinutes} onTrendMinutesChange={onTrendMinutesChange} />
             <Divider />
             <EmptiestSection data={liveCoverage.emptiest || []} onHoverStation={onHoverStation} onClickStation={handleStationClick} />
             <Divider />

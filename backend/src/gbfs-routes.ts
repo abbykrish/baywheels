@@ -18,7 +18,7 @@ function isExcludedStation(s: { name: string; is_installed: boolean; capacity: n
 
 let coverageCache: { data: any; ts: number } | null = null;
 let metaCache: { data: any; ts: number } | null = null;
-let trendsCache: { data: any; ts: number } | null = null;
+let trendsCache: { data: any; ts: number; key: string } | null = null;
 const CACHE_TTL = 60_000;
 
 function refreshCounts(cached: any[]) {
@@ -197,9 +197,11 @@ gbfsApp.get("/api/live/coverage", async (c) => {
 // ─── GET /api/live/trends ────────────────────────────────────────────────────
 
 gbfsApp.get("/api/live/trends", async (c) => {
-  if (trendsCache && Date.now() - trendsCache.ts < CACHE_TTL) return c.json(trendsCache.data);
+  const minutes = Math.min(Math.max(1, Number(c.req.query("minutes") ?? 5)), 60);
+  const cacheKey = `trends_${minutes}`;
+  if (trendsCache?.key === cacheKey && Date.now() - trendsCache.ts < CACHE_TTL) return c.json(trendsCache.data);
 
-  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000)
+  const compareTime = new Date(Date.now() - minutes * 60 * 1000)
     .toISOString().replace("T", " ").slice(0, 19);
   const rows = await query(`
     WITH latest AS (
@@ -208,7 +210,7 @@ gbfsApp.get("/api/live/trends", async (c) => {
     prev AS (
       SELECT max(snapshot_ts) AS ts
       FROM gbfs_station_snapshots
-      WHERE snapshot_ts <= '${fiveMinAgo}'
+      WHERE snapshot_ts <= '${compareTime}'
     ),
     recent AS (
       SELECT s.station_id, s.num_bikes_available, s.num_ebikes_available, s.num_docks_available, s.snapshot_ts,
@@ -248,7 +250,7 @@ gbfsApp.get("/api/live/trends", async (c) => {
     bike_delta: Number(r.bike_delta),
     ebike_delta: Number(r.ebike_delta),
   }));
-  trendsCache = { data, ts: Date.now() };
+  trendsCache = { data, ts: Date.now(), key: cacheKey };
   return c.json(data);
 });
 

@@ -71,28 +71,15 @@ export function getLiveCoverage(limit = 10) {
   return fetchJSON(`/live/coverage?${params}`);
 }
 
-export function getLiveTrends() {
-  return fetchJSON("/live/trends");
+export function getLiveTrends(minutes = 5) {
+  const params = new URLSearchParams({ minutes: String(minutes) });
+  return fetchJSON(`/live/trends?${params}`);
 }
 
 
 export function getStationHistory(stationId, hours = 24) {
   const params = new URLSearchParams({ hours: String(hours) });
   return fetchJSON(`/station-history/${encodeURIComponent(stationId)}?${params}`);
-}
-
-// ─── SLA endpoints ─────────────────────────────────────────────────────────
-
-export function getSLAClusters() {
-  return fetchJSON("/sla/clusters");
-}
-
-export function getSLADistribution() {
-  return fetchJSON("/sla/distribution");
-}
-
-export function getSLAFleet() {
-  return fetchJSON("/sla/fleet");
 }
 
 export function getStationLastEbike(stationId) {

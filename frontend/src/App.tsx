@@ -37,6 +37,7 @@ export default function App() {
   const [liveMeta, setLiveMeta] = useState(null);
   const [liveCoverage, setLiveCoverage] = useState({ emptiest: [], best: [] });
   const [liveTrends, setLiveTrends] = useState([]);
+  const [trendMinutes, setTrendMinutes] = useState(5);
   const [highlightedStationId, setHighlightedStationId] = useState(null);
   const [highlightedRoute, setHighlightedRoute] = useState(null);
   const [selectedStation, setSelectedStation] = useState(null);
@@ -99,7 +100,7 @@ export default function App() {
         getLiveBikes(),
         getLiveMeta(),
         getLiveCoverage(10),
-        getLiveTrends(),
+        getLiveTrends(trendMinutes),
       ]);
       setLiveStations(s);
       setLiveBikes(b);
@@ -117,6 +118,11 @@ export default function App() {
     const interval = setInterval(loadLiveData, 60_000);
     return () => clearInterval(interval);
   }, [activeLayer, loadLiveData]);
+
+  function handleTrendMinutesChange(m) {
+    setTrendMinutes(m);
+    getLiveTrends(m).then(setLiveTrends).catch(() => {});
+  }
 
   return (
     <div className="w-full h-full relative">
@@ -200,7 +206,7 @@ export default function App() {
 
       {/* Mobile backdrop — tap to close sidebar */}
       {sidebarOpen && <div className="md:hidden fixed inset-0 bg-black/20 z-14" onClick={() => setSidebarOpen(false)} />}
-      <Sidebar flows={flows} stations={stations} activeLayer={activeLayer} liveCoverage={liveCoverage} liveTrends={liveTrends} liveStations={liveStations} onHoverStation={setHighlightedStationId} onHoverRoute={setHighlightedRoute} onClickStation={setSelectedStation} sidebarOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} hourly={hourly} months={months} selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} arcCount={arcCount} onArcCountChange={setArcCount} />
+      <Sidebar flows={flows} stations={stations} activeLayer={activeLayer} liveCoverage={liveCoverage} liveTrends={liveTrends} liveStations={liveStations} trendMinutes={trendMinutes} onTrendMinutesChange={handleTrendMinutesChange} onHoverStation={setHighlightedStationId} onHoverRoute={setHighlightedRoute} onClickStation={setSelectedStation} sidebarOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} hourly={hourly} months={months} selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} arcCount={arcCount} onArcCountChange={setArcCount} />
       {activeLayer === "live" ? <LiveLegend /> : <Legend activeLayer={activeLayer} />}
       <StationModal station={selectedStation} onClose={() => setSelectedStation(null)} />
       <WelcomeModal />
