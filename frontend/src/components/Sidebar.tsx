@@ -387,7 +387,7 @@ function RouteLookupSection() {
         </button>
         {result && result.total_trips > 0 && (
           <div className="flex flex-col gap-1 pt-2 border-t border-gray-100">
-            <StatRow label="Trips" value={result.total_trips.toLocaleString()} bold />
+            <StatRow label="Trips (all time)" value={result.total_trips.toLocaleString()} bold />
             <StatRow label="Return trips" value={result.reverse_trips.toLocaleString()} />
             <StatRow label="Avg duration" value={result.avg_duration_min ? `${result.avg_duration_min} min` : "\u2014"} />
             <StatRow label="Members" value={`${result.member_trips.toLocaleString()} (${Math.round(result.member_trips / result.total_trips * 100)}%)`} />
@@ -405,10 +405,11 @@ function RouteLookupSection() {
 
 // ─── Section: Top Stations ───────────────────────────────────────────────────
 
-function TopStationsSection({ stations, onHoverStation }) {
+function TopStationsSection({ stations, onHoverStation, selectedMonth = "all" }) {
   const top = (stations || []).slice(0, 10);
+  const period = selectedMonth === "all" ? "all time" : new Date(selectedMonth + "T12:00:00").toLocaleDateString([], { month: "short", year: "numeric" });
   return (
-    <Section label="Top Stations" description="Stations with the most departures in the selected time period.">
+    <Section label="Top Stations" description={`Stations with the most departures (${period}).`}>
       <div className="flex flex-col gap-1.5">
         {top.map((s, i) => (
           <div
@@ -435,10 +436,11 @@ function TopStationsSection({ stations, onHoverStation }) {
 
 // ─── Section: Top Routes ─────────────────────────────────────────────────────
 
-function TopRoutesSection({ flows, onHoverRoute }) {
+function TopRoutesSection({ flows, onHoverRoute, selectedMonth = "all" }) {
   const top = (flows || []).slice(0, 10);
+  const period = selectedMonth === "all" ? "all time" : new Date(selectedMonth + "T12:00:00").toLocaleDateString([], { month: "short", year: "numeric" });
   return (
-    <Section label="Top Routes" description="Most popular origin-destination pairs by trip count.">
+    <Section label="Top Routes" description={`Most popular origin-destination pairs (${period}).`}>
       <div className="flex flex-col gap-1.5" onMouseLeave={() => onHoverRoute?.(null)}>
         {top.map((f, i) => (
           <div key={i} className="flex items-center gap-2 cursor-pointer" onMouseEnter={() => onHoverRoute?.(f)}>
@@ -521,9 +523,9 @@ export default function Sidebar({ flows, stations, activeLayer, liveCoverage = {
           <>
             <RouteLookupSection />
             <Divider />
-            <TopStationsSection stations={stations} onHoverStation={onHoverStation} />
+            <TopStationsSection stations={stations} onHoverStation={onHoverStation} selectedMonth={selectedMonth} />
             <Divider />
-            <TopRoutesSection flows={flows} onHoverRoute={onHoverRoute} />
+            <TopRoutesSection flows={flows} onHoverRoute={onHoverRoute} selectedMonth={selectedMonth} />
           </>
         )}
       </div>

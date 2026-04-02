@@ -77,6 +77,15 @@ export default function MapView({ flows, stations, activeLayer, liveStations = [
     }));
   }, [flyToCity]);
 
+  // Adjust pitch based on layer: angled for arcs, top-down for live
+  useEffect(() => {
+    const targetPitch = activeLayer === "arcs" ? 45 : 0;
+    setViewState((prev) => {
+      if (prev.pitch === targetPitch) return prev;
+      return { ...prev, pitch: targetPitch, transitionDuration: 500, transitionInterpolator: new FlyToInterpolator() };
+    });
+  }, [activeLayer]);
+
   const maxCount = useMemo(() => {
     if (!flows.length) return 1;
     return Math.max(...flows.map((f) => f.count));
@@ -271,7 +280,7 @@ function getTooltip({ object }) {
   if (!object) return null;
   if (object.from_name) {
     return {
-      html: `<b>${object.from_name}</b> &rarr; <b>${object.to_name}</b><br/>${object.count.toLocaleString()} trips`,
+      html: `<b>${object.from_name}</b> &rarr; <b>${object.to_name}</b><br/>${object.count.toLocaleString()} total trips`,
       style: TOOLTIP_STYLE,
     };
   }
