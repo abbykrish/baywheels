@@ -41,6 +41,36 @@ function Section({ label, description, defaultOpen = true, children }) {
   );
 }
 
+function ExpandableList({ items, renderItem, initialCount = 5, step = 5 }) {
+  const [showCount, setShowCount] = useState(initialCount);
+  const visible = items.slice(0, showCount);
+  const remaining = items.length - showCount;
+  const isExpanded = showCount > initialCount;
+  return (
+    <>
+      {visible.map(renderItem)}
+      <div className="flex gap-2">
+        {remaining > 0 && (
+          <button
+            onClick={() => setShowCount((c) => c + step)}
+            className="text-[10px] text-purple-600 font-medium bg-transparent border-none cursor-pointer py-1 hover:underline"
+          >
+            Show {Math.min(step, remaining)} more ({remaining} remaining)
+          </button>
+        )}
+        {isExpanded && (
+          <button
+            onClick={() => setShowCount(initialCount)}
+            className="text-[10px] text-gray-400 font-medium bg-transparent border-none cursor-pointer py-1 hover:underline"
+          >
+            Collapse
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
 function Divider() {
   return <div className="h-px bg-black/8 shrink-0" />;
 }
@@ -175,8 +205,6 @@ function CoverageRow({ s, i, onHoverStation, onClickStation = null }) {
 // ─── Section: Emptiest Stations ──────────────────────────────────────────────
 
 function EmptiestSection({ data, onHoverStation, onClickStation = null }) {
-  const [expanded, setExpanded] = useState(false);
-  const visible = expanded ? data : data.slice(0, 5);
   return (
     <Section
       label="Emptiest Stations"
@@ -186,17 +214,10 @@ function EmptiestSection({ data, onHoverStation, onClickStation = null }) {
         {data.length === 0 && (
           <div className="text-xs text-gray-400 text-center py-2">Waiting for live data...</div>
         )}
-        {visible.map((s, i) => (
-          <CoverageRow key={s.station_id} s={s} i={i} onHoverStation={onHoverStation} onClickStation={onClickStation} />
-        ))}
-        {data.length > 5 && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-[10px] text-purple-600 font-medium bg-transparent border-none cursor-pointer py-1 hover:underline"
-          >
-            {expanded ? "Show less" : `Show all ${data.length}`}
-          </button>
-        )}
+        <ExpandableList
+          items={data}
+          renderItem={(s, i) => <CoverageRow key={s.station_id} s={s} i={i} onHoverStation={onHoverStation} onClickStation={onClickStation} />}
+        />
       </div>
     </Section>
   );
@@ -205,25 +226,16 @@ function EmptiestSection({ data, onHoverStation, onClickStation = null }) {
 // ─── Section: Best Coverage ──────────────────────────────────────────────────
 
 function BestCoverageSection({ data, onHoverStation, onClickStation = null }) {
-  const [expanded, setExpanded] = useState(false);
-  const visible = expanded ? data : data.slice(0, 5);
   return (
     <Section
       label="Best Coverage"
       description="Stations that spent the least time empty over the last 24 hours."
     >
       <div className="flex flex-col gap-1.5">
-        {visible.map((s, i) => (
-          <CoverageRow key={s.station_id} s={s} i={i} onHoverStation={onHoverStation} onClickStation={onClickStation} />
-        ))}
-        {data.length > 5 && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="text-[10px] text-purple-600 font-medium bg-transparent border-none cursor-pointer py-1 hover:underline"
-          >
-            {expanded ? "Show less" : `Show all ${data.length}`}
-          </button>
-        )}
+        <ExpandableList
+          items={data}
+          renderItem={(s, i) => <CoverageRow key={s.station_id} s={s} i={i} onHoverStation={onHoverStation} onClickStation={onClickStation} />}
+        />
       </div>
     </Section>
   );
@@ -281,12 +293,8 @@ function TrendRow({ t, onHoverStation, onClickStation }) {
 const TREND_WINDOWS = [5, 15, 30];
 
 function RecentChangesSection({ data, onHoverStation, onClickStation = null, trendMinutes = 5, onTrendMinutesChange }) {
-  const [gainExpanded, setGainExpanded] = useState(false);
-  const [lossExpanded, setLossExpanded] = useState(false);
   const gaining = data.filter((t) => t.bike_delta > 0).sort((a, b) => b.bike_delta - a.bike_delta);
   const losing = data.filter((t) => t.bike_delta < 0).sort((a, b) => a.bike_delta - b.bike_delta);
-  const visibleGain = gainExpanded ? gaining : gaining.slice(0, 3);
-  const visibleLoss = lossExpanded ? losing : losing.slice(0, 3);
   return (
     <Section
       label="Recent Changes"
@@ -314,23 +322,21 @@ function RecentChangesSection({ data, onHoverStation, onClickStation = null, tre
         {gaining.length > 0 && (
           <>
             <div className="text-[10px] font-semibold text-green-600 uppercase tracking-wider mt-1">Gaining ({gaining.length})</div>
-            {visibleGain.map((t) => <TrendRow key={t.station_id} t={t} onHoverStation={onHoverStation} onClickStation={onClickStation} />)}
-            {gaining.length > 3 && (
-              <button onClick={() => setGainExpanded(!gainExpanded)} className="text-[10px] text-purple-600 font-medium bg-transparent border-none cursor-pointer py-1 hover:underline">
-                {gainExpanded ? "Show less" : `Show all ${gaining.length}`}
-              </button>
-            )}
+            <ExpandableList
+              items={gaining}
+              initialCount={3}
+              renderItem={(t) => <TrendRow key={t.station_id} t={t} onHoverStation={onHoverStation} onClickStation={onClickStation} />}
+            />
           </>
         )}
         {losing.length > 0 && (
           <>
             <div className={`text-[10px] font-semibold text-red-500 uppercase tracking-wider ${gaining.length > 0 ? "mt-3" : "mt-1"}`}>Losing ({losing.length})</div>
-            {visibleLoss.map((t) => <TrendRow key={t.station_id} t={t} onHoverStation={onHoverStation} onClickStation={onClickStation} />)}
-            {losing.length > 3 && (
-              <button onClick={() => setLossExpanded(!lossExpanded)} className="text-[10px] text-purple-600 font-medium bg-transparent border-none cursor-pointer py-1 hover:underline">
-                {lossExpanded ? "Show less" : `Show all ${losing.length}`}
-              </button>
-            )}
+            <ExpandableList
+              items={losing}
+              initialCount={3}
+              renderItem={(t) => <TrendRow key={t.station_id} t={t} onHoverStation={onHoverStation} onClickStation={onClickStation} />}
+            />
           </>
         )}
       </div>
