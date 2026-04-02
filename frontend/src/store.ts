@@ -23,7 +23,7 @@ export const useStore = create((set, get) => ({
   hourly: [],
   months: [],
   selectedMonth: "all",
-  arcCount: 200,
+  arcCount: 20,
   loading: true,
   error: null,
 
