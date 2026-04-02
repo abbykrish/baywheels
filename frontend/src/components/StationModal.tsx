@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { getStationHistory, getStationLastEbike } from "../api";
+import { useStore } from "../store";
 
 interface HistoryPoint {
   ts: string;
@@ -20,10 +21,6 @@ interface Station {
   is_returning: boolean;
 }
 
-interface Props {
-  station: Station | null;
-  onClose: () => void;
-}
 
 function formatTime(ts: string, showDate = false) {
   try {
@@ -251,7 +248,10 @@ const HOUR_OPTIONS: { value: number; label: string }[] = [
   { value: 168, label: "1w" },
 ];
 
-export default function StationModal({ station, onClose }: Props) {
+export default function StationModal() {
+  const station = useStore((s) => s.selectedStation) as Station | null;
+  const setSelectedStation = useStore((s) => s.setSelectedStation);
+  const onClose = () => setSelectedStation(null);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [hours, setHours] = useState(24);
   const [loading, setLoading] = useState(true);

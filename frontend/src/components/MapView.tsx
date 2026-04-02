@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useCallback, useEffect } from "react";
+import { useStore } from "../store";
 import { Map as MapGL } from "react-map-gl/maplibre";
 import DeckGL from "@deck.gl/react";
 import { ArcLayer, ScatterplotLayer } from "@deck.gl/layers";
@@ -59,7 +60,17 @@ function ebikeFillColor(station) {
 
 export { CITIES };
 
-export default function MapView({ flows, stations, activeLayer, liveStations = [], liveBikes = [], liveTrends = [], highlightedStationId = null, highlightedRoute = null, onClickStation = null, flyToCity = null }) {
+export default function MapView() {
+  const flows = useStore((s) => s.flows);
+  const stations = useStore((s) => s.stations);
+  const activeLayer = useStore((s) => s.activeLayer);
+  const liveStations = useStore((s) => s.liveStations);
+  const liveBikes = useStore((s) => s.liveBikes);
+  const liveTrends = useStore((s) => s.liveTrends);
+  const highlightedStationId = useStore((s) => s.highlightedStationId);
+  const highlightedRoute = useStore((s) => s.highlightedRoute);
+  const setSelectedStation = useStore((s) => s.setSelectedStation);
+  const flyToCity = useStore((s) => s.flyToCity);
   const [viewState, setViewState] = useState(INITIAL_VIEW);
 
   useEffect(() => {
@@ -241,18 +252,18 @@ export default function MapView({ flows, stations, activeLayer, liveStations = [
   }, [flows, stations, activeLayer, maxCount, liveStations, liveBikes, liveTrends, highlightedStationId, highlightedRoute]);
 
   function handleClick(info) {
-    if (!info.object || !onClickStation) return;
+    if (!info.object || !setSelectedStation) return;
     const obj = info.object;
     // Any object with station_id — resolve to full station object
     if (obj.station_id) {
       // Direct station object (has capacity field)
       if (obj.capacity != null) {
-        onClickStation(obj);
+        setSelectedStation(obj);
         return;
       }
       // Trend or other layer — look up the full station
       const match = liveStations.find((s) => s.station_id === obj.station_id);
-      if (match) onClickStation(match);
+      if (match) setSelectedStation(match);
     }
   }
 

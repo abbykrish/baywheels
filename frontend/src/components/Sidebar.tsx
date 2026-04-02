@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { getStationNames, getRouteLookup } from "../api";
+import { useStore } from "../store";
 import MonthFilter from "./MonthFilter";
 import HourlyChart from "./HourlyChart";
 
@@ -467,25 +468,43 @@ function TopRoutesSection({ flows, onHoverRoute, selectedMonth = "all" }) {
 
 // ─── Main sidebar ────────────────────────────────────────────────────────────
 
-export default function Sidebar({ flows, stations, activeLayer, liveCoverage = { emptiest: [], best: [] }, liveTrends = [], onHoverStation, onHoverRoute, onClickStation, liveStations = [], trendMinutes = 5, onTrendMinutesChange, sidebarOpen = false, onClose, hourly = [], months = [], selectedMonth = "all", onMonthChange, arcCount = 200, onArcCountChange }) {
-  // Look up full live station object by station_id and fire onClickStation
+export default function Sidebar() {
+  const flows = useStore((s) => s.flows);
+  const stations = useStore((s) => s.stations);
+  const activeLayer = useStore((s) => s.activeLayer);
+  const liveCoverage = useStore((s) => s.liveCoverage);
+  const liveTrends = useStore((s) => s.liveTrends);
+  const liveStations = useStore((s) => s.liveStations);
+  const trendMinutes = useStore((s) => s.trendMinutes);
+  const loadTrends = useStore((s) => s.loadTrends);
+  const onHoverStation = useStore((s) => s.setHighlightedStationId);
+  const onHoverRoute = useStore((s) => s.setHighlightedRoute);
+  const setSelectedStation = useStore((s) => s.setSelectedStation);
+  const sidebarOpen = useStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useStore((s) => s.setSidebarOpen);
+  const hourly = useStore((s) => s.hourly);
+  const months = useStore((s) => s.months);
+  const selectedMonth = useStore((s) => s.selectedMonth);
+  const setSelectedMonth = useStore((s) => s.setSelectedMonth);
+  const arcCount = useStore((s) => s.arcCount);
+  const setArcCount = useStore((s) => s.setArcCount);
+
   function handleStationClick(stationId) {
-    if (!onClickStation) return;
     const s = liveStations.find((s) => s.station_id === stationId);
-    if (s) onClickStation(s);
+    if (s) setSelectedStation(s);
   }
 
   return (
     <div className={`absolute top-[86px] md:top-[68px] right-0 bottom-0 w-[85vw] max-w-[360px] bg-white/95 backdrop-blur-md border-l border-black/8 shadow-md flex flex-col z-15 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "translate-x-full pointer-events-none"} md:translate-x-0 md:pointer-events-auto`}>
       {/* Mobile drag handle */}
-      <div className="md:hidden flex justify-center pt-2 pb-1" onClick={onClose}>
+      <div className="md:hidden flex justify-center pt-2 pb-1" onClick={() => setSidebarOpen(false)}>
         <div className="w-8 h-1 rounded-full bg-gray-300" />
       </div>
       <div className="flex-1 overflow-y-auto p-4 pt-2 md:pt-4 flex flex-col gap-5">
         {/* Mobile-only: month filter + arc count */}
         {activeLayer !== "live" && (
           <div className="md:hidden flex flex-col gap-3">
-            <MonthFilter months={months} selected={selectedMonth} onChange={onMonthChange} />
+            <MonthFilter months={months} selected={selectedMonth} onChange={setSelectedMonth} />
             {activeLayer === "arcs" && (
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] uppercase tracking-wide text-gray-400">Top Routes</label>
@@ -493,7 +512,7 @@ export default function Sidebar({ flows, stations, activeLayer, liveCoverage = {
                   {[50, 100, 200, 500].map((n) => (
                     <button
                       key={n}
-                      onClick={() => onArcCountChange?.(n)}
+                      onClick={() => setArcCount?.(n)}
                       className={`flex-1 py-1.5 text-xs rounded-md border cursor-pointer transition-all ${
                         arcCount === n
                           ? "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold"
@@ -512,7 +531,7 @@ export default function Sidebar({ flows, stations, activeLayer, liveCoverage = {
         )}
         {activeLayer === "live" && (
           <>
-            <RecentChangesSection data={liveTrends} onHoverStation={onHoverStation} onClickStation={handleStationClick} trendMinutes={trendMinutes} onTrendMinutesChange={onTrendMinutesChange} />
+            <RecentChangesSection data={liveTrends} onHoverStation={onHoverStation} onClickStation={handleStationClick} trendMinutes={trendMinutes} onTrendMinutesChange={loadTrends} />
             <Divider />
             <EmptiestSection data={liveCoverage.emptiest || []} onHoverStation={onHoverStation} onClickStation={handleStationClick} />
             <Divider />

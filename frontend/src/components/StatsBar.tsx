@@ -1,4 +1,5 @@
 import React from "react";
+import { useStore } from "../store";
 
 function fmt(n) {
   if (n == null) return "\u2014";
@@ -43,7 +44,11 @@ const LIVE_STATS_CONFIG = [
   { key: "last_poll", label: "Last Poll", format: (v) => v ? new Date(v).toLocaleTimeString() : "\u2014", hideOnMobile: true },
 ];
 
-export default function StatsBar({ stats, loading, activeLayer, liveMeta }) {
+export default function StatsBar() {
+  const stats = useStore((s) => s.stats);
+  const loading = useStore((s) => s.loading);
+  const activeLayer = useStore((s) => s.activeLayer);
+  const liveMeta = useStore((s) => s.liveMeta);
   return (
     <div className="absolute top-0 left-0 right-0 z-10 bg-white/92 backdrop-blur-md border-b border-black/8 px-3 py-2 md:px-6 md:py-3 flex items-center gap-4 md:gap-8">
       <div className="whitespace-nowrap shrink-0">
