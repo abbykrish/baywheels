@@ -344,6 +344,78 @@ function RecentChangesSection({ data, onHoverStation, onClickStation = null, tre
   );
 }
 
+// ─── Section: System-wide Metrics ────────────────────────────────────────────
+
+function MetricRow({ label, value, valueColor = "text-gray-900", sub = null }) {
+  return (
+    <div className="flex justify-between items-baseline gap-2 py-0.5">
+      <span className="text-[11px] text-gray-500 truncate">{label}</span>
+      <span className="flex items-baseline gap-1 shrink-0">
+        <span className={`text-[12px] font-semibold ${valueColor}`}>{value}</span>
+        {sub && <span className="text-[10px] text-gray-400">{sub}</span>}
+      </span>
+    </div>
+  );
+}
+
+function SystemMetricsSection({ meta }) {
+  const fillPct = meta?.total_capacity
+    ? Math.round((meta.total_bikes / meta.total_capacity) * 100)
+    : null;
+  const atZero = meta?.stations_at_zero_ebikes;
+  const ebikeRides = meta?.ebike_rides_6h || 0;
+  const classicRides = meta?.classic_rides_6h || 0;
+  const rideRatio = classicRides
+    ? `${(ebikeRides / classicRides).toFixed(1)}x`
+    : (ebikeRides ? "∞" : "—");
+  const util = meta?.ebike_util_12mo;
+  const casualUtil = meta?.casual_ebike_util_12mo;
+  const utilColor = util == null ? "text-gray-400" : util >= 6 ? "text-green-600" : "text-amber-600";
+  const casualUtilColor = casualUtil == null ? "text-gray-400" : casualUtil >= 1.5 ? "text-green-600" : "text-amber-600";
+  return (
+    <Section
+      label="System-wide Metrics"
+      description="Fleet-level metrics across all Bay Wheels stations and bikes."
+    >
+      <div className="flex flex-col">
+        <MetricRow
+          label="Fill % (bikes / docks)"
+          value={fillPct != null ? `${fillPct}%` : "—"}
+          valueColor="text-purple-600"
+          sub={meta?.total_capacity ? `${fmt(meta.total_bikes)} / ${fmt(meta.total_capacity)}` : null}
+        />
+        <MetricRow label="Stations at Zero Ebikes" value={atZero != null ? atZero : "—"} valueColor="text-purple-600" />
+        <MetricRow label="Ebike vs Classic Rides (6h)" value={rideRatio} valueColor="text-purple-600" />
+        <div className="h-px bg-black/8 my-1.5" />
+        <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-0.5">Contract Utilization (12mo)</div>
+        <p className="text-[10px] text-gray-400 mt-1 mb-1.5 leading-snug">
+          Between 2027–2029, the ebike fleet minimum rises from 2,000 to 2,800 if both utilization thresholds below are met on a 12-month rolling basis. See the{" "}
+          <a
+            href="https://mtc.ca.gov/sites/default/files/meetings/attachments/6539/5bi_26_0125_Summary_Sheet_Bay_Wheels_Bikeshare_Contract_Extension.pdf?cb=985a3f09"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-gray-600"
+          >
+            MTC contract summary
+          </a>.
+        </p>
+        <MetricRow
+          label="Ebike util (trips/ebike/day)"
+          value={util != null ? util.toFixed(2) : "—"}
+          valueColor={utilColor}
+          sub="/ 6.00"
+        />
+        <MetricRow
+          label="Casual ebike util"
+          value={casualUtil != null ? casualUtil.toFixed(2) : "—"}
+          valueColor={casualUtilColor}
+          sub="/ 1.50"
+        />
+      </div>
+    </Section>
+  );
+}
+
 // ─── Section: Route Lookup ───────────────────────────────────────────────────
 
 function RouteLookupSection() {
@@ -480,6 +552,7 @@ export default function Sidebar() {
   const activeLayer = useStore((s) => s.activeLayer);
   const liveCoverage = useStore((s) => s.liveCoverage);
   const liveTrends = useStore((s) => s.liveTrends);
+  const liveMeta = useStore((s) => s.liveMeta);
   const liveStations = useStore((s) => s.liveStations);
   const trendMinutes = useStore((s) => s.trendMinutes);
   const loadTrends = useStore((s) => s.loadTrends);
@@ -537,6 +610,8 @@ export default function Sidebar() {
         )}
         {activeLayer === "live" && (
           <>
+            <SystemMetricsSection meta={liveMeta} />
+            <Divider />
             <RecentChangesSection data={liveTrends} onHoverStation={onHoverStation} onClickStation={handleStationClick} trendMinutes={trendMinutes} onTrendMinutesChange={loadTrends} />
             <Divider />
             <EmptiestSection data={liveCoverage.emptiest || []} onHoverStation={onHoverStation} onClickStation={handleStationClick} />
