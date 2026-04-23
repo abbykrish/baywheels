@@ -92,8 +92,8 @@ export default function App() {
           <span>Transit stations</span>
           <span className="flex gap-1.5">
             <span className="inline-block w-2 h-2 rounded-full" style={{ background: "rgb(0, 91, 157)" }} title="BART" />
-            <span className="inline-block w-2 h-2 rounded-full" style={{ background: "rgb(228, 0, 43)" }} title="Caltrain" />
-            <span className="inline-block w-2 h-2 rounded-full" style={{ background: "rgb(155, 38, 67)" }} title="Muni" />
+            <span className="inline-block w-2 h-2 rounded-full" style={{ background: "rgb(220, 38, 38)" }} title="Caltrain" />
+            <span className="inline-block w-2 h-2 rounded-full" style={{ background: "rgb(22, 163, 74)" }} title="Muni" />
           </span>
         </button>
 

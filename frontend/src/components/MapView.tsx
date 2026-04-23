@@ -12,12 +12,12 @@ import transitStations from "../data/transit-stations.json";
 // longer "San Francisco Bay Area Rapid Transit District"; same for Caltrain
 // and Muni).
 const TRANSIT_SYSTEMS: Record<string, { label: string; color: [number, number, number, number] }> = {
-  "San Francisco Bay Area Rapid Transit District": { label: "BART", color: [0, 91, 157, 220] },
-  "Bay Area Rapid Transit":                         { label: "BART", color: [0, 91, 157, 220] },
-  "City and County of San Francisco":               { label: "Muni", color: [155, 38, 67, 220] },
-  "San Francisco Municipal Transportation Agency":  { label: "Muni", color: [155, 38, 67, 220] },
-  "Peninsula Corridor Joint Powers Board":          { label: "Caltrain", color: [228, 0, 43, 220] },
-  "Caltrain":                                       { label: "Caltrain", color: [228, 0, 43, 220] },
+  "San Francisco Bay Area Rapid Transit District": { label: "BART", color: [0, 91, 157, 230] },
+  "Bay Area Rapid Transit":                         { label: "BART", color: [0, 91, 157, 230] },
+  "City and County of San Francisco":               { label: "Muni", color: [22, 163, 74, 230] },
+  "San Francisco Municipal Transportation Agency":  { label: "Muni", color: [22, 163, 74, 230] },
+  "Peninsula Corridor Joint Powers Board":          { label: "Caltrain", color: [220, 38, 38, 230] },
+  "Caltrain":                                       { label: "Caltrain", color: [220, 38, 38, 230] },
 };
 const TRANSIT_DEFAULT_COLOR: [number, number, number, number] = [120, 120, 120, 180];
 
