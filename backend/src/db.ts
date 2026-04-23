@@ -18,10 +18,10 @@ export async function getConnection(): Promise<DuckDBConnection> {
   if (!instance) {
     instance = await DuckDBInstance.create(DB_PATH);
     const setup = await instance.connect();
-    // Cap well under the 2 GB VM so Node/OS/GBFS poller still have headroom.
-    // When a query needs more, DuckDB spills to temp_directory instead of OOM.
-    await setup.run("SET memory_limit = '1200MB'");
-    await setup.run("SET threads = 1");
+    // Temp dir lives on the persistent volume so DuckDB can spill to disk
+    // without filling the container filesystem. Memory/thread limits for
+    // heavy ops like refreshSummaries are applied inside those functions,
+    // not globally — normal queries run at DuckDB defaults for speed.
     try { fs.mkdirSync(TEMP_DIR, { recursive: true }); } catch {}
     await setup.run(`SET temp_directory = '${TEMP_DIR.replace(/'/g, "''")}'`);
     await setup.run("SET preserve_insertion_order = false");
@@ -44,6 +44,14 @@ export async function query(sql: string): Promise<Record<string, unknown>[]> {
 export async function refreshSummaries(): Promise<void> {
   const conn = await getConnection();
   console.log("Refreshing summary tables...");
+
+  // Tighten DuckDB resource limits for the duration of this call.
+  // These settings stay in effect on the persistent connection until reset
+  // in the `finally` block below. Keeps aggregations from OOM'ing the 2 GB
+  // VM; accepts slower refresh in exchange for the server staying responsive.
+  await conn.run("SET memory_limit = '1200MB'");
+  await conn.run("SET threads = 1");
+  try {
 
   await conn.run(`
     CREATE OR REPLACE TABLE monthly_stats AS
@@ -148,7 +156,12 @@ export async function refreshSummaries(): Promise<void> {
     ORDER BY start_station_name
   `);
 
-  console.log("Summary tables refreshed.");
+    console.log("Summary tables refreshed.");
+  } finally {
+    // Restore defaults so subsequent normal queries run at full speed.
+    try { await conn.run("RESET memory_limit"); } catch {}
+    try { await conn.run("RESET threads"); } catch {}
+  }
 }
 
 export { DB_PATH };
