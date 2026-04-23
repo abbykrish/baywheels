@@ -368,8 +368,8 @@ function SystemMetricsSection({ meta }) {
   const rideRatio = classicRides
     ? `${(ebikeRides / classicRides).toFixed(1)}x`
     : (ebikeRides ? "∞" : "—");
-  const util = meta?.ebike_util_12mo;
-  const casualUtil = meta?.casual_ebike_util_12mo;
+  const util = meta?.ebike_util_1mo;
+  const casualUtil = meta?.casual_ebike_util_1mo;
   const utilColor = util == null ? "text-gray-400" : util >= 6 ? "text-green-600" : "text-amber-600";
   const casualUtilColor = casualUtil == null ? "text-gray-400" : casualUtil >= 1.5 ? "text-green-600" : "text-amber-600";
   return (
@@ -387,9 +387,9 @@ function SystemMetricsSection({ meta }) {
         <MetricRow label="Stations at Zero Ebikes" value={atZero != null ? atZero : "—"} valueColor="text-purple-600" />
         <MetricRow label="Ebike vs Classic Rides (6h)" value={rideRatio} valueColor="text-purple-600" />
         <div className="h-px bg-black/8 my-1.5" />
-        <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-0.5">Contract Utilization (12mo)</div>
+        <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-0.5">Ebike Utilization (30d)</div>
         <p className="text-[10px] text-gray-400 mt-1 mb-1.5 leading-snug">
-          Between 2027–2029, the ebike fleet minimum rises from 2,000 to 2,800 if both utilization thresholds below are met on a 12-month rolling basis. See the{" "}
+          Current 30-day rolling e-bike utilization. Between 2027–2029, the ebike fleet minimum rises from 2,000 to 2,800 if both thresholds are met on a 12-month rolling basis. See the{" "}
           <a
             href="https://mtc.ca.gov/sites/default/files/meetings/attachments/6539/5bi_26_0125_Summary_Sheet_Bay_Wheels_Bikeshare_Contract_Extension.pdf?cb=985a3f09"
             target="_blank"

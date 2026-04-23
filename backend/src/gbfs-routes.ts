@@ -190,13 +190,15 @@ gbfsApp.get("/api/live/meta", async (c) => {
     classic_rides = classicDockEnds;
   } catch {}
 
-  // 12-month utilization: trips per ebike per day. Denominator is the current
-  // live fleet size (docked ebikes + free-floating bikes — classics can't be
-  // dockless in this system). Contract triggers at >6 overall, >1.5 casual.
-  let ebike_util_12mo: number | null = null;
-  let casual_ebike_util_12mo: number | null = null;
+  // 30-day rolling utilization: trips per ebike per day. Denominator is the
+  // current live fleet size (docked ebikes + free-floating bikes — classics
+  // can't be dockless in this system). Contract thresholds shown for
+  // reference: >6 overall, >1.5 casual (note: contract measures 12-month
+  // rolling; this is 30-day for current conditions).
+  let ebike_util_1mo: number | null = null;
+  let casual_ebike_util_1mo: number | null = null;
   try {
-    const cutoff12mo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+    const cutoff1mo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
       .toISOString().replace("T", " ").slice(0, 19);
     const rows = await query(`
       SELECT
@@ -205,18 +207,18 @@ gbfsApp.get("/api/live/meta", async (c) => {
                   AND member_casual IN ('casual', 'Customer') THEN 1 ELSE 0 END) AS casual_ebike_trips,
         date_diff('day', min(started_at), max(started_at)) AS span_days
       FROM trips
-      WHERE started_at >= '${cutoff12mo}'
+      WHERE started_at >= '${cutoff1mo}'
     `);
     const ebikeFleet = totalEbikes + bikes.length;
     const ebikeTrips = Number(rows[0]?.ebike_trips ?? 0);
     const casualEbikeTrips = Number(rows[0]?.casual_ebike_trips ?? 0);
     const spanDays = Math.max(1, Number(rows[0]?.span_days ?? 0));
     if (ebikeFleet > 0) {
-      ebike_util_12mo = ebikeTrips / ebikeFleet / spanDays;
-      casual_ebike_util_12mo = casualEbikeTrips / ebikeFleet / spanDays;
+      ebike_util_1mo = ebikeTrips / ebikeFleet / spanDays;
+      casual_ebike_util_1mo = casualEbikeTrips / ebikeFleet / spanDays;
     }
   } catch (err) {
-    console.error("util_12mo calc failed:", err);
+    console.error("util_1mo calc failed:", err);
   }
 
   const data = {
@@ -230,8 +232,8 @@ gbfsApp.get("/api/live/meta", async (c) => {
     stations_at_zero_ebikes: stationsAtZero,
     ebike_rides_6h: ebike_rides,
     classic_rides_6h: classic_rides,
-    ebike_util_12mo,
-    casual_ebike_util_12mo,
+    ebike_util_1mo,
+    casual_ebike_util_1mo,
   };
   metaCache = { data, ts: Date.now() };
   return c.json(data);
