@@ -1,9 +1,14 @@
 import path from "path";
+import fs from "fs";
 import { DuckDBInstance, DuckDBConnection } from "@duckdb/node-api";
 
 const DB_PATH =
   process.env.BAYWHEELS_DB ??
   path.resolve(import.meta.dirname, "..", "..", "data", "baywheels.duckdb");
+
+// Spill temp files next to the DB file so they land on the same volume
+// (on Fly that's the persistent /data mount, not the container FS).
+const TEMP_DIR = path.join(path.dirname(DB_PATH), "duckdb_tmp");
 
 let instance: DuckDBInstance | null = null;
 let persistentConn: DuckDBConnection | null = null;
@@ -13,7 +18,12 @@ export async function getConnection(): Promise<DuckDBConnection> {
   if (!instance) {
     instance = await DuckDBInstance.create(DB_PATH);
     const setup = await instance.connect();
-    await setup.run("SET memory_limit = '2GB'");
+    // Cap well under the 2 GB VM so Node/OS/GBFS poller still have headroom.
+    // When a query needs more, DuckDB spills to temp_directory instead of OOM.
+    await setup.run("SET memory_limit = '1200MB'");
+    await setup.run("SET threads = 1");
+    try { fs.mkdirSync(TEMP_DIR, { recursive: true }); } catch {}
+    await setup.run(`SET temp_directory = '${TEMP_DIR.replace(/'/g, "''")}'`);
     await setup.run("SET preserve_insertion_order = false");
     setup.closeSync();
   }

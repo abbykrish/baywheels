@@ -32,19 +32,37 @@ app.post("/api/ingest", async (c) => {
 });
 
 // ─── /api/refresh ─────────────────────────────────────────────────────────────
+type RefreshState = {
+  running: boolean;
+  startedAt?: number;
+  completedAt?: number;
+  error?: string;
+};
+let refreshState: RefreshState = { running: false };
+
 app.post("/api/refresh", async (c) => {
   if (!INGEST_TOKEN) return c.json({ error: "Not configured" }, 503);
   const auth = c.req.header("Authorization");
   if (auth !== `Bearer ${INGEST_TOKEN}`) {
     return c.json({ error: "Unauthorized" }, 401);
   }
-  try {
-    await refreshSummaries();
-    return c.json({ ok: true });
-  } catch (e: any) {
-    return c.json({ error: e.message }, 500);
+  if (refreshState.running) {
+    return c.json({ error: "Refresh already in progress", state: refreshState }, 409);
   }
+  refreshState = { running: true, startedAt: Date.now() };
+  // Fire-and-forget. Status trackable via GET /api/refresh/status.
+  refreshSummaries()
+    .then(() => {
+      refreshState = { running: false, startedAt: refreshState.startedAt, completedAt: Date.now() };
+    })
+    .catch((e: any) => {
+      console.error("refreshSummaries failed:", e);
+      refreshState = { running: false, startedAt: refreshState.startedAt, completedAt: Date.now(), error: e.message };
+    });
+  return c.json({ ok: true, state: refreshState }, 202);
 });
+
+app.get("/api/refresh/status", (c) => c.json(refreshState));
 
 /** Build a WHERE clause for month-based filtering on summary tables. */
 function monthFilter(start?: string, end?: string): string {
