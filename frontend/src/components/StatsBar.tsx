@@ -26,21 +26,27 @@ const STATS_CONFIG = [
   { key: "peak_hour", label: "Peak Hour", format: formatHour, hideOnMobile: true },
 ];
 
-function fmtCirculation(meta) {
+function fmtRideRatio(meta) {
   if (!meta) return "\u2014";
-  const e = meta.ebike_circulation || 0;
-  const c = meta.classic_circulation || 0;
+  const e = meta.ebike_rides_6h || 0;
+  const c = meta.classic_rides_6h || 0;
   if (!c) return e ? "\u221e" : "\u2014";
   return `${(e / c).toFixed(1)}x`;
+}
+
+function fmtFill(meta) {
+  if (!meta || !meta.total_capacity) return "\u2014";
+  return `${Math.round((meta.total_bikes / meta.total_capacity) * 100)}%`;
 }
 
 const LIVE_STATS_CONFIG = [
   { key: "total_ebikes", label: "Ebikes", format: fmt },
   { key: "total_classics", label: "Classics", format: fmt },
+  { key: "_fill", label: "Fill %", format: null, isMeta: true },
   { key: "station_count", label: "Stations", format: fmt, hideOnMobile: true },
   { key: "stations_at_zero_ebikes", label: "At Zero Ebikes", format: fmt },
   { key: "free_bike_count", label: "Loose Bikes", format: fmt, hideOnMobile: true },
-  { key: "_circulation", label: "Ebike vs Classic Rides (6h)", format: null, isMeta: true },
+  { key: "_ride_ratio", label: "Ebike vs Classic Rides (6h)", format: null, isMeta: true },
   { key: "last_poll", label: "Last Poll", format: (v) => v ? new Date(v).toLocaleTimeString() : "\u2014", hideOnMobile: true },
 ];
 
@@ -60,7 +66,7 @@ export default function StatsBar() {
           <div key={key} className={`flex flex-col min-w-[60px] md:min-w-[80px] ${hideOnMobile ? "hidden md:flex" : ""}`}>
             <div className="text-sm md:text-base font-semibold text-purple-600">
               {activeLayer === "live"
-                ? (isMeta ? fmtCirculation(liveMeta) : format(liveMeta?.[key]))
+                ? (isMeta ? (key === "_fill" ? fmtFill(liveMeta) : fmtRideRatio(liveMeta)) : format(liveMeta?.[key]))
                 : loading ? "..." : format(stats?.[key])}
             </div>
             <div className="text-[9px] md:text-[10px] uppercase tracking-wide text-gray-400 mt-0.5">{label}</div>

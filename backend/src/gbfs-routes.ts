@@ -141,14 +141,17 @@ gbfsApp.get("/api/live/meta", async (c) => {
   const totalEbikes = stations.reduce((sum, s) => sum + s.num_ebikes_available, 0);
   const totalBikes = stations.reduce((sum, s) => sum + s.num_bikes_available, 0);
   const totalClassics = totalBikes - totalEbikes;
+  const totalCapacity = stations.reduce((sum, s) => sum + (s.capacity ?? 0), 0);
   const stationsAtZero = stations.filter((s) => s.num_ebikes_available === 0 && s.is_installed).length;
 
-  let ebike_circulation = 0;
-  let classic_circulation = 0;
+  let ebike_rides = 0;
+  let classic_rides = 0;
   try {
     const cutoff = new Date(Date.now() - 6 * 60 * 60 * 1000)
       .toISOString().replace("T", " ").slice(0, 19);
-    const rows = await query(`
+
+    // Count ride ends at docks: positive deltas in ebike/classic counts per station.
+    const dockRows = await query(`
       WITH ordered AS (
         SELECT
           station_id,
@@ -160,15 +163,31 @@ gbfsApp.get("/api/live/meta", async (c) => {
         WHERE snapshot_ts >= '${cutoff}'
       )
       SELECT
-        sum(abs(ebikes - prev_ebikes)) AS ebike_moves,
-        sum(abs(classics - prev_classics)) AS classic_moves
+        sum(CASE WHEN ebikes > prev_ebikes THEN ebikes - prev_ebikes ELSE 0 END) AS ebike_dock_ends,
+        sum(CASE WHEN classics > prev_classics THEN classics - prev_classics ELSE 0 END) AS classic_dock_ends
       FROM ordered
       WHERE prev_ebikes IS NOT NULL
     `);
-    if (rows.length) {
-      ebike_circulation = Number(rows[0].ebike_moves ?? 0);
-      classic_circulation = Number(rows[0].classic_moves ?? 0);
-    }
+
+    // Count ride ends on the street: bike_ids whose first appearance in
+    // gbfs_free_bikes falls within the window. bike_ids rotate per trip, so
+    // a new id in the feed = a trip just ended with the bike parked off-dock.
+    const streetRows = await query(`
+      SELECT count(*) AS ebike_street_ends
+      FROM (
+        SELECT bike_id, min(snapshot_ts) AS first_seen
+        FROM gbfs_free_bikes
+        GROUP BY bike_id
+      ) t
+      WHERE first_seen >= '${cutoff}'
+    `);
+
+    const ebikeDockEnds = Number(dockRows[0]?.ebike_dock_ends ?? 0);
+    const classicDockEnds = Number(dockRows[0]?.classic_dock_ends ?? 0);
+    const ebikeStreetEnds = Number(streetRows[0]?.ebike_street_ends ?? 0);
+
+    ebike_rides = ebikeDockEnds + ebikeStreetEnds;
+    classic_rides = classicDockEnds;
   } catch {}
 
   const data = {
@@ -177,9 +196,11 @@ gbfsApp.get("/api/live/meta", async (c) => {
     free_bike_count: bikes.length,
     total_ebikes: totalEbikes,
     total_classics: totalClassics,
+    total_bikes: totalBikes,
+    total_capacity: totalCapacity,
     stations_at_zero_ebikes: stationsAtZero,
-    ebike_circulation,
-    classic_circulation,
+    ebike_rides_6h: ebike_rides,
+    classic_rides_6h: classic_rides,
   };
   metaCache = { data, ts: Date.now() };
   return c.json(data);
