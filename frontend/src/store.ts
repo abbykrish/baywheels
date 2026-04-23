@@ -42,6 +42,7 @@ export const useStore = create((set, get) => ({
   selectedStation: null,
   sidebarOpen: false,
   flyToCity: null,
+  showTransit: false,
 
   // --- Simple setters ---
   setActiveLayer: (layer) => set({ activeLayer: layer }),
@@ -52,6 +53,7 @@ export const useStore = create((set, get) => ({
   setSelectedStation: (station) => set({ selectedStation: station }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setFlyToCity: (city) => set({ flyToCity: city }),
+  setShowTransit: (show) => set({ showTransit: show }),
 
   // --- Async actions ---
   loadMonths: async () => {

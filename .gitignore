@@ -3,7 +3,7 @@ dist/
 .venv/
 __pycache__/
 *.pyc
-data/
+/data/
 .env
 .DS_Store
 .vercel

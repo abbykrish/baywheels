@@ -5,6 +5,29 @@ import DeckGL from "@deck.gl/react";
 import { ArcLayer, ScatterplotLayer } from "@deck.gl/layers";
 import { HeatmapLayer } from "@deck.gl/aggregation-layers";
 import { FlyToInterpolator } from "@deck.gl/core";
+import transitStations from "../data/transit-stations.json";
+
+// Group agencies into color buckets. The MTC dataset tags a few agencies
+// under two primary names (BART has both "Bay Area Rapid Transit" and the
+// longer "San Francisco Bay Area Rapid Transit District"; same for Caltrain
+// and Muni).
+const TRANSIT_SYSTEMS: Record<string, { label: string; color: [number, number, number, number] }> = {
+  "San Francisco Bay Area Rapid Transit District": { label: "BART", color: [0, 91, 157, 220] },
+  "Bay Area Rapid Transit":                         { label: "BART", color: [0, 91, 157, 220] },
+  "City and County of San Francisco":               { label: "Muni", color: [155, 38, 67, 220] },
+  "San Francisco Municipal Transportation Agency":  { label: "Muni", color: [155, 38, 67, 220] },
+  "Peninsula Corridor Joint Powers Board":          { label: "Caltrain", color: [228, 0, 43, 220] },
+  "Caltrain":                                       { label: "Caltrain", color: [228, 0, 43, 220] },
+};
+const TRANSIT_DEFAULT_COLOR: [number, number, number, number] = [120, 120, 120, 180];
+
+function transitColor(agency: string): [number, number, number, number] {
+  return TRANSIT_SYSTEMS[agency]?.color ?? TRANSIT_DEFAULT_COLOR;
+}
+
+function transitLabel(agency: string): string {
+  return TRANSIT_SYSTEMS[agency]?.label ?? agency;
+}
 
 const CITIES = {
   sf: { label: "SF", longitude: -122.42, latitude: 37.775, zoom: 13 },
@@ -71,6 +94,7 @@ export default function MapView() {
   const highlightedRoute = useStore((s) => s.highlightedRoute);
   const setSelectedStation = useStore((s) => s.setSelectedStation);
   const flyToCity = useStore((s) => s.flyToCity);
+  const showTransit = useStore((s) => s.showTransit);
   const [viewState, setViewState] = useState(INITIAL_VIEW);
 
   useEffect(() => {
@@ -217,6 +241,24 @@ export default function MapView() {
 
     }
 
+    if (showTransit) {
+      result.push(
+        new ScatterplotLayer({
+          id: "transit-stations",
+          data: transitStations,
+          getPosition: (d) => [d.lon, d.lat],
+          getRadius: 8,
+          getFillColor: (d) => transitColor(d.agency),
+          radiusMinPixels: 3,
+          radiusMaxPixels: 7,
+          stroked: true,
+          getLineColor: [255, 255, 255, 220],
+          lineWidthMinPixels: 1,
+          pickable: true,
+        })
+      );
+    }
+
     // Unified highlight ring for any hovered station
     if (highlightedStationId) {
       let highlightData = [];
@@ -249,7 +291,7 @@ export default function MapView() {
     }
 
     return result;
-  }, [flows, stations, activeLayer, maxCount, liveStations, liveBikes, liveTrends, highlightedStationId, highlightedRoute]);
+  }, [flows, stations, activeLayer, maxCount, liveStations, liveBikes, liveTrends, highlightedStationId, highlightedRoute, showTransit]);
 
   function handleClick(info) {
     if (!info.object || !setSelectedStation) return;
@@ -317,6 +359,13 @@ function getTooltip({ object }) {
   if (object.name) {
     return {
       html: `<b>${object.name}</b><br/>${object.departures.toLocaleString()} departures<br/>${object.arrivals.toLocaleString()} arrivals`,
+      style: TOOLTIP_STYLE,
+    };
+  }
+  // Transit station (from transit-stations.json)
+  if (object.agency) {
+    return {
+      html: `<b>${transitLabel(object.agency)}</b><br/>${object.agency}`,
       style: TOOLTIP_STYLE,
     };
   }

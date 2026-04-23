@@ -25,6 +25,8 @@ export default function App() {
   const setSidebarOpen = useStore((s) => s.setSidebarOpen);
   const flyToCity = useStore((s) => s.flyToCity);
   const setFlyToCity = useStore((s) => s.setFlyToCity);
+  const showTransit = useStore((s) => s.showTransit);
+  const setShowTransit = useStore((s) => s.setShowTransit);
   const loadMonths = useStore((s) => s.loadMonths);
   const loadHistoricalData = useStore((s) => s.loadHistoricalData);
   const loadLiveData = useStore((s) => s.loadLiveData);
@@ -77,6 +79,23 @@ export default function App() {
             </button>
           ))}
         </div>
+
+        {/* Transit overlay toggle */}
+        <button
+          onClick={() => setShowTransit(!showTransit)}
+          className={`flex items-center justify-between px-2.5 py-1.5 text-[11px] rounded-md border cursor-pointer transition-all
+            ${showTransit
+              ? "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold"
+              : "border-black/10 bg-transparent text-gray-500"
+            }`}
+        >
+          <span>Transit stations</span>
+          <span className="flex gap-1.5">
+            <span className="inline-block w-2 h-2 rounded-full" style={{ background: "rgb(0, 91, 157)" }} title="BART" />
+            <span className="inline-block w-2 h-2 rounded-full" style={{ background: "rgb(228, 0, 43)" }} title="Caltrain" />
+            <span className="inline-block w-2 h-2 rounded-full" style={{ background: "rgb(155, 38, 67)" }} title="Muni" />
+          </span>
+        </button>
 
         {/* City picker — desktop only */}
         <div className="hidden md:flex gap-1">
