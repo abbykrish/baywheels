@@ -290,6 +290,9 @@ export default function StationModal() {
   const avgFill = activeHistory.length && station.capacity
     ? Math.round((activeHistory.reduce((sum, d) => sum + d.bikes, 0) / activeHistory.length / station.capacity) * 100)
     : null;
+  const currentFill = station.capacity
+    ? Math.round((station.num_bikes_available / station.capacity) * 100)
+    : null;
 
   return createPortal(
     <div className="station-modal-overlay" onPointerDown={onClose}>
@@ -319,6 +322,7 @@ export default function StationModal() {
             <StatPill label="Ebikes" value={station.num_ebikes_available} color="text-purple-600" />
             <StatPill label="Classic" value={classics} color="text-blue-500" />
 
+            <StatPill label={`Fill Now (${station.num_bikes_available}/${station.capacity})`} value={currentFill != null ? `${currentFill}%` : "\u2014"} color={currentFill == null ? "text-gray-400" : currentFill >= 50 ? "text-green-600" : currentFill >= 10 ? "text-amber-600" : "text-red-500"} title="Current bikes available divided by station capacity." />
             <StatPill label={`Avg Fill (${HOUR_OPTIONS.find(o => o.value === hours)?.label})`} value={avgFill != null ? `${avgFill}%` : "\u2014"} color={avgFill == null ? "text-gray-400" : avgFill >= 50 ? "text-green-600" : avgFill >= 10 ? "text-amber-600" : "text-red-500"} />
             <StatPill label={lastEbike?.avg_time ? `Empty By (${lastEbike.days_empty}/7 days)` : "Station Empty By"} value={lastEbike?.avg_time ? lastEbike.avg_time.replace(" ", "") : "\u2014"} color="text-orange-600" title="Avg time the longest daily ebike depletion begins. Shows how many of the last 7 days had 0 ebikes at this time." />
           </div>
