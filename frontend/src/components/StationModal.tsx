@@ -116,6 +116,22 @@ function MiniChart({ history, capacity, showDate = false }: { history: HistoryPo
     xLabels.push({ i, label: formatTime(data[i].ts, showDate) });
   }
 
+  // Weekend shading for 1w view: group consecutive Sat/Sun points into ranges.
+  const weekendRanges: { start: number; end: number }[] = [];
+  if (showDate) {
+    let runStart: number | null = null;
+    for (let i = 0; i < data.length; i++) {
+      const day = new Date(data[i].ts).getDay();
+      const isWeekend = day === 0 || day === 6;
+      if (isWeekend && runStart === null) runStart = i;
+      else if (!isWeekend && runStart !== null) {
+        weekendRanges.push({ start: runStart, end: i - 1 });
+        runStart = null;
+      }
+    }
+    if (runStart !== null) weekendRanges.push({ start: runStart, end: data.length - 1 });
+  }
+
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -158,6 +174,18 @@ function MiniChart({ history, capacity, showDate = false }: { history: HistoryPo
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverIdx(null)}
       >
+        {weekendRanges.map((r, idx) => (
+          <rect
+            key={`wknd-${idx}`}
+            x={x(r.start)}
+            y={PAD.top}
+            width={Math.max(1, x(r.end) - x(r.start))}
+            height={ch}
+            fill="rgb(99, 102, 241)"
+            opacity="0.08"
+          />
+        ))}
+
         <line x1={PAD.left} x2={W - PAD.right} y1={y(capacity)} y2={y(capacity)} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4,3" />
         <text x={W - PAD.right + 2} y={y(capacity) + 3} fill="#d1d5db" fontSize="8">{capacity}</text>
 
@@ -226,6 +254,11 @@ function MiniChart({ history, capacity, showDate = false }: { history: HistoryPo
           <span className="flex items-center gap-1 text-gray-400">
             <span className="inline-block w-3 h-0 border-t border-dashed border-gray-300" /> Capacity
           </span>
+          {showDate && (
+            <span className="flex items-center gap-1 text-gray-400">
+              <span className="inline-block w-3 h-2.5 rounded-sm" style={{ backgroundColor: "rgba(99, 102, 241, 0.16)" }} /> Weekend
+            </span>
+          )}
         </div>
       )}
     </div>
