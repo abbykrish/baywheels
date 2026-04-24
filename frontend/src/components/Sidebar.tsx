@@ -3,6 +3,7 @@ import { getStationNames, getRouteLookup } from "../api";
 import { useStore } from "../store";
 import MonthFilter from "./MonthFilter";
 import HourlyChart from "./HourlyChart";
+import RebalanceViolationsSection from "./RebalanceViolationsSection";
 
 function fmt(n) {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
@@ -611,6 +612,8 @@ export default function Sidebar() {
         {activeLayer === "live" && (
           <>
             <SystemMetricsSection meta={liveMeta} />
+            <Divider />
+            <RebalanceViolationsSection onClickStation={handleStationClick} />
             <Divider />
             <RecentChangesSection data={liveTrends} onHoverStation={onHoverStation} onClickStation={handleStationClick} trendMinutes={trendMinutes} onTrendMinutesChange={loadTrends} />
             <Divider />

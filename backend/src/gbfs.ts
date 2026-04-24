@@ -64,6 +64,17 @@ export function getLastPollTime(): Date | null {
   return lastPollTime;
 }
 
+// Identify virtual / non-physical stations. GBFS 2.3 has a `station_type`
+// field for this but Lyft's feed leaves it unset, and other candidate
+// signals (missing region_id / short_name) produce false positives against
+// legitimately metadata-sparse stations like Daly City's initial rollout
+// and the Golden Gate Park stations. Name match is the only reliable
+// signal today — 8 stations in the SF feed are explicitly suffixed
+// "Virtual Station". Kept on the map; excluded from all computed metrics.
+export function isVirtualStation(s: { name?: string }): boolean {
+  return !!s.name && s.name.toLowerCase().includes("virtual");
+}
+
 // ─── GBFS feed URLs ──────────────────────────────────────────────────────────
 
 const GBFS_BASE = "https://gbfs.lyft.com/gbfs/2.3/bay/en";

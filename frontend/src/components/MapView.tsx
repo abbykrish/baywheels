@@ -2,32 +2,12 @@ import React, { useMemo, useState, useCallback, useEffect } from "react";
 import { useStore } from "../store";
 import { Map as MapGL } from "react-map-gl/maplibre";
 import DeckGL from "@deck.gl/react";
-import { ArcLayer, ScatterplotLayer } from "@deck.gl/layers";
+import { ArcLayer, ScatterplotLayer, LineLayer } from "@deck.gl/layers";
 import { HeatmapLayer } from "@deck.gl/aggregation-layers";
 import { FlyToInterpolator } from "@deck.gl/core";
 import transitStations from "../data/transit-stations.json";
-
-// Group agencies into color buckets. The MTC dataset tags a few agencies
-// under two primary names (BART has both "Bay Area Rapid Transit" and the
-// longer "San Francisco Bay Area Rapid Transit District"; same for Caltrain
-// and Muni).
-const TRANSIT_SYSTEMS: Record<string, { label: string; color: [number, number, number, number] }> = {
-  "San Francisco Bay Area Rapid Transit District": { label: "BART", color: [0, 91, 157, 230] },
-  "Bay Area Rapid Transit":                         { label: "BART", color: [0, 91, 157, 230] },
-  "City and County of San Francisco":               { label: "Muni", color: [22, 163, 74, 230] },
-  "San Francisco Municipal Transportation Agency":  { label: "Muni", color: [22, 163, 74, 230] },
-  "Peninsula Corridor Joint Powers Board":          { label: "Caltrain", color: [220, 38, 38, 230] },
-  "Caltrain":                                       { label: "Caltrain", color: [220, 38, 38, 230] },
-};
-const TRANSIT_DEFAULT_COLOR: [number, number, number, number] = [120, 120, 120, 180];
-
-function transitColor(agency: string): [number, number, number, number] {
-  return TRANSIT_SYSTEMS[agency]?.color ?? TRANSIT_DEFAULT_COLOR;
-}
-
-function transitLabel(agency: string): string {
-  return TRANSIT_SYSTEMS[agency]?.label ?? agency;
-}
+import { groupIntoAreas } from "../lib/rebalance-areas";
+import { stationFillColor, transitColor, transitLabel } from "../lib/palette";
 
 const CITIES = {
   sf: { label: "SF", longitude: -122.42, latitude: 37.775, zoom: 13 },
@@ -53,6 +33,9 @@ const TOOLTIP_STYLE = {
   padding: "8px 12px",
   borderRadius: "6px",
   boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+  maxWidth: "260px",
+  whiteSpace: "normal",
+  wordBreak: "break-word",
 };
 
 function densityColor(t) {
@@ -72,14 +55,15 @@ function densityColor(t) {
   return [235 + s * (220 - 235), 140 + s * (38 - 140), 45 + s * (38 - 45), 200 + t * 40];
 }
 
-function ebikeFillColor(station) {
-  if (!station.capacity || station.capacity === 0) return [150, 150, 150, 180];
-  const ratio = station.num_ebikes_available / station.capacity;
-  if (ratio >= 0.5) return [34, 197, 94, 200];    // green
-  if (ratio >= 0.25) return [249, 115, 22, 200];   // orange
-  if (ratio >= 0.1) return [234, 179, 8, 200];    // yellow
-  return [220, 38, 38, 200];                       // red
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const R = 6_371_000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
 }
+
 
 export { CITIES };
 
@@ -90,11 +74,14 @@ export default function MapView() {
   const liveStations = useStore((s) => s.liveStations);
   const liveBikes = useStore((s) => s.liveBikes);
   const liveTrends = useStore((s) => s.liveTrends);
+  const rebalancingKpi = useStore((s) => s.rebalancingKpi);
   const highlightedStationId = useStore((s) => s.highlightedStationId);
   const highlightedRoute = useStore((s) => s.highlightedRoute);
   const setSelectedStation = useStore((s) => s.setSelectedStation);
   const flyToCity = useStore((s) => s.flyToCity);
   const showTransit = useStore((s) => s.showTransit);
+  const showRebalance = useStore((s) => s.showRebalance);
+  const highlightedAreaKey = useStore((s) => s.highlightedAreaKey);
   const [viewState, setViewState] = useState(INITIAL_VIEW);
 
   useEffect(() => {
@@ -217,7 +204,7 @@ export default function MapView() {
           data: stationsWithTrends,
           getPosition: (d) => [d.lon, d.lat],
           getRadius: (d) => 25 + Math.sqrt(d.capacity || 1) * 8,
-          getFillColor: (d) => ebikeFillColor(d),
+          getFillColor: (d) => stationFillColor(d),
           radiusMinPixels: 4,
           radiusMaxPixels: 20,
           pickable: true,
@@ -239,6 +226,75 @@ export default function MapView() {
         })
       );
 
+    }
+
+    if (showRebalance) {
+      const areas = groupIntoAreas(rebalancingKpi?.by_station ?? []);
+      if (areas.length) {
+        const maxPenalty = Math.max(1, ...areas.map((a) => a.penalty_dollars));
+
+        // One disc per Violation Area at its centroid. Radius = real meters
+        // so the circle physically covers the area footprint.
+        result.push(
+          new ScatterplotLayer({
+            id: "rebal-area-discs",
+            data: areas,
+            getPosition: (d) => [d.centroid_lon, d.centroid_lat],
+            getRadius: (d) => Math.max(120, d.extent_meters),
+            getFillColor: (d) => {
+              const t = Math.min(1, d.penalty_dollars / maxPenalty);
+              return [220, Math.round(50 * (1 - t) + 20), Math.round(50 * (1 - t) + 20), Math.round(40 + t * 120)];
+            },
+            getLineColor: (d) =>
+              d.key === highlightedAreaKey ? [180, 10, 10, 255] : [180, 30, 30, 180],
+            getLineWidth: (d) => (d.key === highlightedAreaKey ? 3 : 1),
+            lineWidthMinPixels: 1,
+            stroked: true,
+            radiusMinPixels: 8,
+            radiusMaxPixels: 180,
+            pickable: true,
+            updateTriggers: {
+              getLineColor: highlightedAreaKey,
+              getLineWidth: highlightedAreaKey,
+            },
+          }),
+        );
+
+        // On hover: draw connector lines from centroid to each member
+        // station + small red rings on each station.
+        if (highlightedAreaKey) {
+          const focus = areas.find((a) => a.key === highlightedAreaKey);
+          if (focus) {
+            result.push(
+              new LineLayer({
+                id: "rebal-area-links",
+                data: focus.stations,
+                getSourcePosition: () => [focus.centroid_lon, focus.centroid_lat],
+                getTargetPosition: (d) => [d.lon, d.lat],
+                getColor: [180, 30, 30, 200],
+                getWidth: 2,
+                widthMinPixels: 1,
+              }),
+            );
+            result.push(
+              new ScatterplotLayer({
+                id: "rebal-area-stations",
+                data: focus.stations,
+                getPosition: (d) => [d.lon, d.lat],
+                getRadius: 30,
+                getFillColor: [255, 255, 255, 240],
+                getLineColor: [180, 10, 10, 255],
+                stroked: true,
+                getLineWidth: 2,
+                lineWidthMinPixels: 2,
+                radiusMinPixels: 5,
+                radiusMaxPixels: 10,
+                pickable: true,
+              }),
+            );
+          }
+        }
+      }
     }
 
     if (showTransit) {
@@ -291,7 +347,7 @@ export default function MapView() {
     }
 
     return result;
-  }, [flows, stations, activeLayer, maxCount, liveStations, liveBikes, liveTrends, highlightedStationId, highlightedRoute, showTransit]);
+  }, [flows, stations, activeLayer, maxCount, liveStations, liveBikes, liveTrends, rebalancingKpi, highlightedStationId, highlightedAreaKey, highlightedRoute, showTransit, showRebalance]);
 
   function handleClick(info) {
     if (!info.object || !setSelectedStation) return;
@@ -331,6 +387,22 @@ export default function MapView() {
 
 function getTooltip({ object }) {
   if (!object) return null;
+  // Rebalancing Violation Area (from groupIntoAreas)
+  if (object.key && object.penalty_dollars != null && Array.isArray(object.stations)) {
+    const fmtMin = (n) => (n < 60 ? `${Math.round(n)}m` : `${Math.floor(n / 60)}h ${Math.round(n % 60)}m`);
+    const preview =
+      object.stations.slice(0, 3).map((s) => s.station_name).join(" · ") +
+      (object.stations.length > 3 ? ` · +${object.stations.length - 3}` : "");
+    return {
+      html:
+        `<b>Violation Area · ${object.stations.length} stations</b><br/>` +
+        `<span style="color:#555;font-size:11px">${preview}</span><br/>` +
+        `Penalty: $${Math.round(object.penalty_dollars).toLocaleString()}<br/>` +
+        `${object.outage_count} outages · empty ${fmtMin(object.empty_minutes)}` +
+        (object.full_minutes > 0 ? ` · full ${fmtMin(object.full_minutes)}` : ""),
+      style: TOOLTIP_STYLE,
+    };
+  }
   if (object.from_name) {
     return {
       html: `<b>${object.from_name}</b> &rarr; <b>${object.to_name}</b><br/>${object.count.toLocaleString()} total trips`,

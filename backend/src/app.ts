@@ -5,6 +5,16 @@ import { ingest } from "./ingest.js";
 import { gbfsApp } from "./gbfs-routes.js";
 
 export const app = new Hono();
+
+app.use("*", async (c, next) => {
+  const host = c.req.header("host");
+  if (host === "baywheels.fly.dev") {
+    const url = new URL(c.req.url);
+    return c.redirect(`https://bikeshareviz.com${url.pathname}${url.search}`, 301);
+  }
+  return next();
+});
+
 app.use("/api/*", cors());
 app.route("/", gbfsApp);
 

@@ -1,16 +1,20 @@
 import { Hono } from "hono";
 import { query } from "./db.js";
-import { getLatestStations, getLatestFreeBikes, getLastPollTime } from "./gbfs.js";
+import { getLatestStations, getLatestFreeBikes, getLastPollTime, isVirtualStation } from "./gbfs.js";
 import { ensureRetentionTables } from "./gbfs-retention.js";
+import { computeRebalancingKpi } from "./rebalancing.js";
 
 export const gbfsApp = new Hono();
 
 // ─── Station exclusions ─────────────────────────────────────────────────────
+// isVirtualStation is shared from gbfs.ts so every metric path uses the same
+// definition. Virtuals stay in /api/live/stations (map display) but drop out
+// of fleet totals, coverage, utilization, and rebalancing clusters.
 
 function isExcludedStation(s: { name: string; is_installed: boolean; capacity: number; station_id: string }, decommissioned: Set<string>): boolean {
   if (!s.is_installed || s.capacity <= 0) return true;
   if (decommissioned.has(s.station_id)) return true;
-  if (s.name.toLowerCase().includes("virtual")) return true;
+  if (isVirtualStation(s)) return true;
   return false;
 }
 
@@ -134,7 +138,12 @@ gbfsApp.get("/api/live/bikes", (c) => {
 gbfsApp.get("/api/live/meta", async (c) => {
   if (metaCache && Date.now() - metaCache.ts < CACHE_TTL) return c.json(metaCache.data);
 
-  const stations = getLatestStations();
+  // Virtual stations aren't real dock locations, so they'd inflate fleet
+  // totals, capacity, and the "stations at zero ebikes" count. Filter them
+  // out for every metric but keep them visible on the map via the unfiltered
+  // /api/live/stations endpoint.
+  const allStations = getLatestStations();
+  const stations = allStations.filter((s) => !isVirtualStation(s));
   const bikes = getLatestFreeBikes();
   const lastPoll = getLastPollTime();
 
@@ -305,6 +314,17 @@ gbfsApp.get("/api/live/trends", async (c) => {
     ebike_delta: Number(r.ebike_delta),
   }));
   trendsCache = { data, ts: Date.now(), key: cacheKey };
+  return c.json(data);
+});
+
+// ─── GET /api/live/rebalancing-kpi ───────────────────────────────────────────
+// KPI 12 from the 2015 program agreement (Appendix A). Returns cluster outages
+// (>10 consecutive min during Peak Hours 6am–10pm PT, entire cluster empty or
+// full) and the accumulated $1/min penalty.
+
+gbfsApp.get("/api/live/rebalancing-kpi", async (c) => {
+  const hours = Number(c.req.query("hours") ?? 24);
+  const data = await computeRebalancingKpi(hours);
   return c.json(data);
 });
 

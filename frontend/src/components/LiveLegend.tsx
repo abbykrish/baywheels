@@ -1,11 +1,7 @@
 import React from "react";
+import { STATION_FILL_LEVELS } from "../lib/palette";
 
-const STATION_COLORS = [
-  { color: "rgb(34, 197, 94)", label: "50%+" },
-  { color: "rgb(249, 115, 22)", label: "25-50%" },
-  { color: "rgb(234, 179, 8)", label: "10-25%" },
-  { color: "rgb(220, 38, 38)", label: "<10%" },
-];
+const STATION_COLORS = STATION_FILL_LEVELS.map((l) => ({ color: l.rgb, label: l.label }));
 
 export default function LiveLegend() {
   return (

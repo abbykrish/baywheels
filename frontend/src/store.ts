@@ -3,6 +3,7 @@ import { parseISO, addMonths, format } from "date-fns";
 import {
   getStats, getFlows, getStations, getHourly, getMonths,
   getLiveStations, getLiveBikes, getLiveMeta, getLiveCoverage, getLiveTrends,
+  getRebalancingKpi,
 } from "./api";
 
 const LAYERS = ["live", "arcs", "heatmap", "stations"];
@@ -35,6 +36,14 @@ export const useStore = create((set, get) => ({
   liveTrends: [],
   trendMinutes: 5,
 
+  // --- Rebalancing KPI ---
+  rebalancingKpi: null,
+  rebalancingWindowHours: 24,
+  rebalancingLoading: false,
+  highlightedClusterCenterId: null,
+  expandedClusterId: null,
+  highlightedAreaKey: null,
+
   // --- UI ---
   activeLayer: getInitialLayer(),
   highlightedStationId: null,
@@ -43,6 +52,7 @@ export const useStore = create((set, get) => ({
   sidebarOpen: false,
   flyToCity: null,
   showTransit: false,
+  showRebalance: false,
 
   // --- Simple setters ---
   setActiveLayer: (layer) => set({ activeLayer: layer }),
@@ -54,6 +64,10 @@ export const useStore = create((set, get) => ({
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   setFlyToCity: (city) => set({ flyToCity: city }),
   setShowTransit: (show) => set({ showTransit: show }),
+  setShowRebalance: (show) => set({ showRebalance: show }),
+  setHighlightedClusterCenterId: (id) => set({ highlightedClusterCenterId: id }),
+  setExpandedClusterId: (id) => set({ expandedClusterId: id }),
+  setHighlightedAreaKey: (key) => set({ highlightedAreaKey: key }),
 
   // --- Async actions ---
   loadMonths: async () => {
@@ -110,5 +124,18 @@ export const useStore = create((set, get) => ({
       const liveTrends = await getLiveTrends(minutes);
       set({ liveTrends });
     } catch {}
+  },
+
+  loadRebalancingKpi: async (hours) => {
+    const next = hours ?? get().rebalancingWindowHours;
+    set({ rebalancingLoading: true, rebalancingWindowHours: next });
+    try {
+      const data = await getRebalancingKpi(next);
+      set({ rebalancingKpi: data });
+    } catch (e) {
+      console.error("Rebalancing KPI fetch error:", e);
+    } finally {
+      set({ rebalancingLoading: false });
+    }
   },
 }));

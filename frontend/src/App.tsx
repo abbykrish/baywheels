@@ -9,6 +9,7 @@ import MonthFilter from "./components/MonthFilter";
 import StationModal from "./components/StationModal";
 import WelcomeModal from "./components/WelcomeModal";
 import { useStore, LAYERS } from "./store";
+import { TRANSIT_SYSTEMS } from "./lib/palette";
 
 export default function App() {
   const activeLayer = useStore((s) => s.activeLayer);
@@ -91,9 +92,9 @@ export default function App() {
         >
           <span>Transit stations</span>
           <span className="flex gap-1.5">
-            <span className="inline-block w-2 h-2 rounded-full" style={{ background: "rgb(0, 91, 157)" }} title="BART" />
-            <span className="inline-block w-2 h-2 rounded-full" style={{ background: "rgb(220, 38, 38)" }} title="Caltrain" />
-            <span className="inline-block w-2 h-2 rounded-full" style={{ background: "rgb(22, 163, 74)" }} title="Muni" />
+            {TRANSIT_SYSTEMS.map((s) => (
+              <span key={s.label} className="inline-block w-2 h-2 rounded-full" style={{ background: s.rgb }} title={s.label} />
+            ))}
           </span>
         </button>
 

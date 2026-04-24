@@ -77,6 +77,11 @@ export function getLiveTrends(minutes = 5) {
 }
 
 
+export function getRebalancingKpi(hours = 24) {
+  const params = new URLSearchParams({ hours: String(hours) });
+  return fetchJSON(`/live/rebalancing-kpi?${params}`);
+}
+
 export function getStationHistory(stationId, hours = 24) {
   const params = new URLSearchParams({ hours: String(hours) });
   return fetchJSON(`/station-history/${encodeURIComponent(stationId)}?${params}`);

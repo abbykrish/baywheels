@@ -4,6 +4,7 @@ dist/
 __pycache__/
 *.pyc
 /data/
+/files/
 .env
 .DS_Store
 .vercel
