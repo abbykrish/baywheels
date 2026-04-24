@@ -250,7 +250,9 @@ function intersectAll(sets: Interval[][]): Interval[] {
 let resultCache: { key: string; data: RebalancingKpiResult; ts: number } | null = null;
 
 export async function computeRebalancingKpi(hours: number): Promise<RebalancingKpiResult> {
-  const windowHours = Math.max(1, Math.min(hours, 168)); // clamp 1h–7d
+  // Hard cap at 24h: the in-memory scan OOM'd on a 2 GB VM for 7d windows.
+  // Raise once interval detection moves into SQL window functions.
+  const windowHours = Math.max(1, Math.min(hours, 24));
   const cacheKey = `kpi_${windowHours}`;
 
   if (resultCache?.key === cacheKey && Date.now() - resultCache.ts < RESULT_TTL_MS) {

@@ -2,11 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useStore } from "../store";
 import { groupIntoAreas } from "../lib/rebalance-areas";
 
-const WINDOWS = [
-  { label: "24h", hours: 24 },
-  { label: "3d", hours: 72 },
-  { label: "7d", hours: 168 },
-];
+// Fixed at 24h for now. Longer windows (3d/7d) were crashing the server on
+// a 2 GB VM — SQL-side interval detection would unblock it.
+const WINDOW_HOURS = 24;
 
 function fmtDollars(n) {
   return "$" + Math.round(n).toLocaleString();
@@ -51,7 +49,6 @@ export default function RebalanceViolationsSection({ onClickStation }) {
   const showRebalance = useStore((s) => s.showRebalance);
   const setShowRebalance = useStore((s) => s.setShowRebalance);
   const kpi = useStore((s) => s.rebalancingKpi);
-  const windowHours = useStore((s) => s.rebalancingWindowHours);
   const loading = useStore((s) => s.rebalancingLoading);
   const loadRebalancingKpi = useStore((s) => s.loadRebalancingKpi);
   const setHighlightedAreaKey = useStore((s) => s.setHighlightedAreaKey);
@@ -60,8 +57,8 @@ export default function RebalanceViolationsSection({ onClickStation }) {
   // Fetch when section becomes active; refresh every 60s while active.
   useEffect(() => {
     if (!showRebalance) return;
-    loadRebalancingKpi();
-    const t = setInterval(() => loadRebalancingKpi(), 60_000);
+    loadRebalancingKpi(WINDOW_HOURS);
+    const t = setInterval(() => loadRebalancingKpi(WINDOW_HOURS), 60_000);
     return () => clearInterval(t);
   }, [showRebalance]);
 
@@ -82,7 +79,7 @@ export default function RebalanceViolationsSection({ onClickStation }) {
         </span>
         {kpi && showRebalance && (
           <button
-            onClick={() => loadRebalancingKpi(windowHours)}
+            onClick={() => loadRebalancingKpi(WINDOW_HOURS)}
             className="text-[11px] text-purple-600 hover:text-purple-700 cursor-pointer bg-transparent border-none"
             title="Refresh"
           >
@@ -132,24 +129,6 @@ export default function RebalanceViolationsSection({ onClickStation }) {
         <div className="flex flex-col gap-2">
           <div className="text-[10px] text-gray-500 truncate">
             {windowLabel}
-          </div>
-
-          {/* Window selector */}
-          <div className="flex gap-1">
-            {WINDOWS.map((w) => (
-              <button
-                key={w.hours}
-                onClick={() => loadRebalancingKpi(w.hours)}
-                className={`flex-1 py-1 text-[10px] rounded-md border cursor-pointer transition-all
-                  ${
-                    windowHours === w.hours
-                      ? "bg-purple-600/10 border-purple-600/40 text-purple-600 font-semibold"
-                      : "border-black/10 bg-transparent text-gray-500"
-                  }`}
-              >
-                {w.label}
-              </button>
-            ))}
           </div>
 
           {/* Totals grid */}
